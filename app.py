@@ -5,8 +5,8 @@ import base64
 import os
 import re
 
-# Configuração da página
-st.set_page_config(layout="wide", page_title="Gerador de Relatórios")
+# Configuração da página Streamlit
+st.set_page_config(layout="centered", page_title="Gerador de Relatórios")
 
 # --- FUNÇÕES AUXILIARES ---
 
@@ -30,11 +30,7 @@ def extract_id_from_url(input_url):
     if "#" in input_url: return input_url.split("#")[-1]
     return input_url
 
-def sanitize_filename(name):
-    clean_name = re.sub(r'[^\w\s-]', '', name).strip().replace(' ', '_')
-    return f"RELATORIO_{clean_name}.pdf"
-
-# --- CONFIGURAÇÃO DE ESTILOS E IMAGENS ---
+# --- CONFIGURAÇÃO VISUAL ---
 COLOR_PRIMARY = "#9e747a"
 COLOR_BG = "#f5f1f2"
 COLOR_DARK = "#72464e"
@@ -45,7 +41,7 @@ COLOR_CHART_STROKE = "rgba(158, 116, 122, 1)"
 logo_b64 = get_base64_image("logoTKE.png")
 corpo_b64 = get_base64_image("corpo.png")
 
-# --- CSS DO RELATÓRIO (SERÁ INJETADO NA NOVA GUIA) ---
+# --- CSS DO RELATÓRIO (HTML DA NOVA ABA) ---
 html_css = f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
@@ -53,45 +49,21 @@ html_css = f"""
     body {{
         font-family: 'Roboto', Arial, sans-serif;
         margin: 0; padding: 0;
-        background-color: #555; /* Fundo escuro fora da folha para destaque */
+        background-color: #525659; /* Fundo cinza escuro para destacar a folha */
         display: flex;
         justify-content: center;
         min-height: 100vh;
     }}
 
     #container {{
-        width: 793px; /* Largura A4 Exata */
-        min-height: 1122px; /* Altura A4 aproximada */
+        width: 793px; /* Largura A4 */
+        min-height: 1122px; /* Altura A4 */
         margin: 30px auto;
         background-color: {COLOR_BG};
         padding: 0;
         box-sizing: border-box;
-        position: relative;
-        box-shadow: 0 0 15px rgba(0,0,0,0.5); /* Sombra para parecer papel */
+        box-shadow: 0 0 20px rgba(0,0,0,0.5); /* Sombra estilo documento */
     }}
-
-    /* Botão Flutuante NA NOVA GUIA */
-    #btn-download-floating {{
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background-color: {COLOR_PRIMARY};
-        color: white;
-        border: none;
-        padding: 15px 25px;
-        border-radius: 50px;
-        cursor: pointer;
-        font-size: 16px;
-        font-weight: bold;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-        z-index: 9999;
-        transition: transform 0.2s;
-        font-family: 'Roboto', sans-serif;
-    }}
-    #btn-download-floating:hover {{ transform: scale(1.05); background-color: {COLOR_DARK}; }}
-    
-    /* Ocultar botão na hora da impressão nativa ou html2pdf se configurado */
-    @media print {{ #btn-download-floating {{ display: none; }} }}
 
     /* --- ESTILOS INTERNOS DO RELATÓRIO --- */
     .moldura {{ border-radius: 10px; border: 2px solid {COLOR_LIGHT}; overflow: hidden; background-color: {COLOR_BG}; margin: 20px; }}
@@ -177,31 +149,35 @@ html_css = f"""
         #container {{ width: 100%; transform: scale(0.9); transform-origin: top left; }}
         .barra-corpos {{ display: none; }}
     }}
+    
+    /* REMOVER TUDO NA IMPRESSÃO */
+    @media print {
+        body { background-color: white; }
+        #container { margin: 0; box-shadow: none; width: 100%; }
+    }
 </style>
 """
 
 # --- LÓGICA DO APP (STREAMLIT) ---
 
-st.title("Sistema de Relatórios")
-st.write("Insira o link ou ID do relatório abaixo e pressione Enter.")
+st.title("Visualizador de Relatórios")
 
 url_input = st.text_input(
     "Link do Relatório", 
-    placeholder="Cole aqui o link completo ou o ID",
-    label_visibility="collapsed"
+    placeholder="Cole aqui o link completo e pressione Enter",
+    help="Cole o link (ex: ...#123-abc) e aperte Enter."
 )
 
 report_id = extract_id_from_url(url_input)
 
 if report_id:
-    with st.spinner('Processando...'):
+    with st.spinner('Gerando visualização...'):
         data = fetch_data(report_id)
 
         if data:
             nome_paciente = data.get('paciente', {}).get('nome', 'Paciente')
-            nome_arquivo_pdf = sanitize_filename(nome_paciente)
-
-            # JSONs
+            
+            # JSONs para JS
             translations_pt = json.dumps({
                 "titulo": "Relatório de Avaliações", "nome": "Nome: ", "estatura": "Estatura: ", "data": "Data: ",
                 "email": "E-mail: ", "sexo": "Sexo: ", "idade": "Idade: ", "analiseGlobalResumida_titulo": "Análise Global Resumida",
@@ -224,12 +200,11 @@ if report_id:
             })
             json_data = json.dumps(data)
             
-            # Script JS (Incluindo função de download dentro do HTML)
+            # Script JS (Sem html2pdf, apenas renderização)
             js_script = f"""
             <script>
                 const apiData = {json_data};
                 const translations = {translations_pt};
-                const fileName = "{nome_arquivo_pdf}";
                 var lang = "pt";
                 const sexoTraducoes = {{ pt: {{ male: "Masculino", female: "Feminino" }} }};
 
@@ -245,28 +220,7 @@ if report_id:
                     popularDadosAdicionais(ultimaAvaliacao);
                     criaLabelGrafico(data.avaliacoes);
                     criarGraficos(data);
-
-                    // Botão de Download na nova aba
-                    document.getElementById("btn-download-floating").addEventListener("click", downloadPDF);
                 }});
-
-                function downloadPDF() {{
-                    const element = document.getElementById('container');
-                    const btn = document.getElementById('btn-download-floating');
-                    btn.style.display = 'none'; // Esconde botão na "foto"
-                    
-                    const opt = {{
-                        margin: 0,
-                        filename: fileName,
-                        image: {{ type: 'jpeg', quality: 0.98 }},
-                        html2canvas: {{ scale: 2, useCORS: true, logging: false, windowWidth: 793 }},
-                        jsPDF: {{ unit: 'mm', format: 'a4', orientation: 'portrait' }}
-                    }};
-                    
-                    html2pdf().set(opt).from(element).save().then(() => {{
-                        btn.style.display = 'block'; // Mostra botão de volta
-                    }});
-                }}
 
                 // --- FUNÇÕES DE PREENCHIMENTO (Compactadas) ---
                 function aplicarTraducoes() {{ document.querySelectorAll("[data-translate]").forEach(el => {{ const key = el.getAttribute("data-translate"); el.innerText = translations[key] || key; }}); }}
@@ -314,20 +268,16 @@ if report_id:
             """
 
             # CONSTRUÇÃO DO HTML COMPLETO
-            # Incluimos o botão flutuante no final do body
             html_content = f"""
             <!DOCTYPE html>
             <html lang="pt">
             <head>
                 <meta charset="UTF-8">
                 <title>Relatório - {nome_paciente}</title>
-                <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
                 <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.27.0/dist/apexcharts.min.js"></script>
                 {html_css}
             </head>
             <body>
-                <button id="btn-download-floating">⬇ Baixar PDF</button>
-
                 <div id="container">
                     <div class="header grid-container-2c">
                         <div class="logo-cel"><img src="data:image/png;base64,{logo_b64}" /></div>
@@ -482,31 +432,27 @@ if report_id:
             b64_html = base64.b64encode(html_content.encode()).decode()
             data_url = f"data:text/html;base64,{b64_html}"
 
-            st.success(f"Relatório de **{nome_paciente}** gerado com sucesso!")
+            st.success(f"Relatório de **{nome_paciente}** preparado!")
             
-            # 1. Tenta abrir automaticamente (pode ser bloqueado pelo navegador)
-            # st.components.v1.html(f'<script>window.open("{data_url}", "_blank");</script>', height=0)
-
-            # 2. Exibe um BOTÃO LINK GRANDE para o usuário clicar (Caso o bloqueador de pop-up atue)
+            # Exibe um BOTÃO LINK GRANDE para abrir a aba
             st.markdown(f"""
-                <a href="{data_url}" target="_blank" style="
-                    display: inline-block;
-                    background-color: {COLOR_PRIMARY};
-                    color: white;
-                    padding: 15px 30px;
-                    text-align: center;
-                    text-decoration: none;
-                    font-size: 18px;
-                    font-weight: bold;
-                    border-radius: 8px;
-                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                    font-family: sans-serif;
-                ">
-                    📄 CLIQUE AQUI PARA ABRIR O RELATÓRIO
-                </a>
+                <div style="display: flex; justify-content: center; margin-top: 20px;">
+                    <a href="{data_url}" target="_blank" style="
+                        background-color: {COLOR_PRIMARY};
+                        color: white;
+                        padding: 15px 30px;
+                        text-align: center;
+                        text-decoration: none;
+                        font-size: 18px;
+                        font-weight: bold;
+                        border-radius: 8px;
+                        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                        font-family: sans-serif;
+                    ">
+                        📄 ABRIR RELATÓRIO EM NOVA ABA
+                    </a>
+                </div>
             """, unsafe_allow_html=True)
-            
-            st.info("ℹ️ O botão de **Download PDF** estará disponível no canto superior direito da nova aba que se abrirá.")
 
         else:
             st.error("Dados não encontrados. Verifique o link ou ID.")

@@ -3,249 +3,147 @@ import requests
 import base64
 from datetime import datetime
 
-# --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Relatório Clínica", page_icon="🏥", layout="wide")
+# =============================================================================
+# 1. CONFIGURAÇÕES E CORES (TKE)
+# =============================================================================
+st.set_page_config(page_title="Relatório Avanutri TKE", layout="wide")
 
-# --- NOME DO ARQUIVO DE LOGO ---
-LOGO_FILENAME = "logoTKE.png"
+# Definição da Paleta de Cores TKE
+COR_PRIMARIA = "#9e747a"       # Substitui o #00ada8 (Verde Teal)
+COR_SECUNDARIA = "#b09ca0"     # Substitui o #929da7 (Cinza azulado)
+COR_TEXTO = "#5e4b4f"          # Substitui o texto padrão
+COR_FUNDO_CINZA = "#f2eff0"    # Fundo claro para áreas cinzas
 
-# --- PALETA DE CORES PERSONALIZADA ---
-COLORS = {
-    "verde_substituto": "#9e747a",  # Rosa Queimado
-    "fundo": "#f5f1f2",             # Rosa/Cinza Claríssimo
-    "escuro": "#72464e",            # Marrom/Roxo Escuro
-    "claro": "#e2d5d7"              # Rosa Pálido
-}
+# Nome do arquivo de logo (deve estar na mesma pasta)
+ARQUIVO_LOGO = "logo.png" 
 
-# --- FUNÇÕES AUXILIARES ---
+# =============================================================================
+# 2. IMAGEM DO CORPO (SVG EMBUTIDO)
+# =============================================================================
+# Isso substitui o arquivo 'corpo.svg' para o código não quebrar
+SVG_CORPO = """
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 600">
+<g fill="none" stroke="#e0e0e0" stroke-width="2">
+  <path d="M150,50 C170,50 180,70 180,90 C180,105 170,120 150,120 C130,120 120,105 120,90 C120,70 130,50 150,50 Z" />
+  <path d="M120,120 L80,140 L70,280 L50,350" /> 
+  <path d="M180,120 L220,140 L230,280 L250,350" />
+  <path d="M120,120 L120,300 L110,550" />
+  <path d="M180,120 L180,300 L190,550" />
+  <path d="M120,300 L180,300" />
+</g>
+</svg>
+"""
+B64_CORPO = base64.b64encode(SVG_CORPO.encode('utf-8')).decode("utf-8")
+
+# =============================================================================
+# 3. CSS (ADAPTADO COM SUAS CORES)
+# =============================================================================
+# Aqui eu peguei o CSS que você mandou e troquei as cores hardcoded pelas variáveis
+CSS_TEMPLATE = f"""
+<style>
+    /* BASE STYLES */
+    #container {{ width: 800px; margin: auto; background: white; padding: 20px; }}
+    @media (max-width: 700px) {{ #container {{ width: 100%; margin: 0; }} }}
+    .moldura {{ border-radius: 10px; border: 2px solid #AAA; overflow: hidden; }}
+    .container-padding-lateral {{ padding: 0px 20px; }}
+    .rolavel {{ overflow: auto; }}
+    
+    h1 {{ color: {COR_PRIMARIA}; font-size: 20px; margin-bottom: 4px; border-bottom: 1px solid #ddd; }}
+    h2 {{ color: {COR_PRIMARIA}; font-size: 15px; margin-bottom: 4px; }}
+    
+    .font-p {{ font-size: 12px; }}
+    .font-m {{ font-size: 14px; }}
+    .font-g {{ font-size: 16px; }}
+    .align-center {{ text-align: center; }}
+    .align-right {{ text-align: right; }}
+    .font-bold {{ font-weight: bold; }}
+
+    /* CORPO CSS */
+    .corpo {{
+        background-image: url('data:image/svg+xml;base64,{B64_CORPO}');
+        background-position: center;
+        background-repeat: no-repeat;
+        height: 320px;
+    }}
+    /* Posicionamentos do corpo (mantidos do seu CSS original) */
+    .corpo>div:nth-child(1) {{ text-align: right; }}
+    .corpo>div:nth-child(1)>div:nth-child(2) {{ margin-top: 10px; }}
+    .corpo>div:nth-child(1)>div:nth-child(3) {{ margin-top: 30px; }}
+    .corpo>div:nth-child(1)>div:nth-child(4) {{ margin-top: 63px; }}
+    .corpo>div:nth-child(2) {{ text-align: center; margin-top: 66px; }}
+    .corpo>div:nth-child(3)>div:nth-child(2) {{ margin-top: 10px; }}
+    .corpo>div:nth-child(3)>div:nth-child(3) {{ margin-top: 140px; }}
+    .lado-corpo {{ font-size: 1.2em; font-weight: bold; color: {COR_SECUNDARIA}; }}
+
+    /* GRID CSS */
+    .grid-container-2c {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); grid-gap: 10px; }}
+    .grid-container-3c-paciente {{ display: grid; grid-template-columns: minmax(310px, 1fr) minmax(110px, 0.4fr) minmax(110px, 0.4fr); grid-gap: 10px; }}
+    .grid-container-3c-corpo {{ display: grid; grid-template-columns: 1fr 150px 1fr; grid-gap: 10px; }}
+    .grid-container-normalidades {{ display: grid; grid-template-columns: 150px 2.3fr 1.8fr 6fr; grid-gap: 3px; min-width: 570px; }}
+    .grid-container-impedancias {{ display: grid; grid-template-columns: 55px 1fr 1fr 1fr 1fr 1fr; grid-gap: 3px; }}
+    .grid-container-dados-adicionais {{ display: grid; grid-template-columns: 106px 1fr; grid-gap: 4px; }}
+    .grid-container-3c-dados-adicionais {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); grid-gap: 10px; }}
+
+    .cel-cinza, .cel-verde {{ font-weight: bold; color: #FFF; align-items: center; display: grid; padding: 4px; border-radius: 4px; }}
+    .cel-cinza {{ background-color: {COR_SECUNDARIA}; }}
+    .cel-verde {{ background-color: {COR_PRIMARIA}; }}
+    .cel-header {{ color: #FFF; font-size: 14px; font-weight: bold; text-align: center; padding: 4px; }}
+    .cel-label {{ color: #FFF; font-size: 14px; font-weight: bold; padding: 4px 10px; height: 41px; display: flex; align-items: center; }}
+    
+    /* GERAL */
+    body {{ font-family: Arial, sans-serif; margin: 0; color: {COR_TEXTO}; font-size: 10pt; }}
+    .header {{ margin-bottom: 10px; }}
+    .logo-cel img {{ max-height: 80px; }}
+    .user-cel {{ text-align: right; }}
+    .dados-paciente {{ background-color: {COR_FUNDO_CINZA}; padding: 10px 20px; }}
+    .dados-paciente .label {{ font-weight: bold; color: {COR_PRIMARIA}; display: inline; }}
+    .barra-baixo {{ border-bottom: 5px solid {COR_PRIMARIA}; padding-bottom: 12px; }}
+    
+    /* Barras gráficas (Simulação Visual) */
+    .barra-grafico-container {{ background: #eee; height: 15px; margin-top: 5px; width: 100%; border-radius: 3px; }}
+    .barra-grafico {{ background-color: {COR_PRIMARIA}; height: 100%; display: block; border-radius: 3px; }}
+</style>
+"""
+
+# =============================================================================
+# 4. FUNÇÕES LÓGICAS
+# =============================================================================
 
 def get_base64_logo():
-    """Lê a imagem local e converte para base64 para embutir no HTML"""
     try:
-        with open(LOGO_FILENAME, "rb") as img_file:
-            return base64.b64encode(img_file.read()).decode()
+        with open(ARQUIVO_LOGO, "rb") as img_file:
+            return f"data:image/png;base64,{base64.b64encode(img_file.read()).decode()}"
     except FileNotFoundError:
-        return None
+        return "" 
 
-def formatar_numero(valor, decimais=1):
+def fmt(valor, decimais=1):
     if valor is None: return "-"
     try: return f"{float(valor):.{decimais}f}".replace('.', ',')
     except: return str(valor)
 
-def calcular_idade(data_nascimento_str):
-    if not data_nascimento_str: return "-"
+def calc_idade(nasc_str):
     try:
-        nasc = datetime.fromisoformat(data_nascimento_str)
+        nasc = datetime.fromisoformat(nasc_str)
         hoje = datetime.now()
         return hoje.year - nasc.year - ((hoje.month, hoje.day) < (nasc.month, nasc.day))
     except: return "-"
 
-def obter_dados_api(url_relatorio):
+def calc_width(val, min_v, max_v):
+    # Calcula largura da barra (0 a 100%) baseado no min/max
     try:
-        if "#" not in url_relatorio: return None
-        report_id = url_relatorio.split("#")[1]
-        # URL da API
-        url_api = f"https://balancaapi.avanutrionline.com/Relatorio/{report_id}"
-        
-        # Headers para simular navegador real
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        }
-        
-        response = requests.get(url_api, headers=headers)
-        if response.status_code == 200:
-            return response.json()
-        return None
-    except:
-        return None
+        v, mn, mx = float(val), float(min_v), float(max_v)
+        # Lógica simples: Min é 20%, Max é 80% da barra visual
+        range_val = mx - mn
+        if range_val == 0: return "50%"
+        pos = 20 + ((v - mn) / range_val) * 60 
+        pos = max(5, min(100, pos)) # Limita entre 5% e 100%
+        return f"{pos}%"
+    except: return "0%"
 
-# --- GERAÇÃO DO HTML ---
-def gerar_html_relatorio(dados, logo_b64):
-    if not dados: return "<h1>Erro ao processar dados.</h1>"
-    
-    paciente = dados.get('paciente', {})
-    av = dados.get('avaliacoes', [])[-1]
-    corpo = av.get('dadosCorpo', {})
-    membros = av.get('dadosMembros', []) 
-    freqs = av.get('dadosFrequencia', [])
-    
-    # Helper para Impedância
-    def get_imp(khz, membro_key):
-        item = next((f for f in freqs if f.get('frequency') == khz), {})
-        return formatar_numero(item.get(membro_key), 0)
-
-    # Helper para Membros
-    def get_membro(idx, campo):
-        if idx < len(membros):
-            return formatar_numero(membros[idx].get('composicaoCorporal', {}).get(campo))
-        return "-"
-
-    # Tratamento da Logo no HTML
-    html_logo = ""
-    if logo_b64:
-        html_logo = f'<img src="data:image/png;base64,{logo_b64}" alt="Logo" />'
-    else:
-        # Se a imagem falhar, mostra o nome em texto
-        html_logo = f'<div style="font-size:24px; font-weight:bold; color:{COLORS["escuro"]}">{dados.get("user", {}).get("clinicaNome", "Clínica")}</div>'
-
-    # CSS INJETADO
-    css_style = f"""
-    <style>
-        :root {{
-            --cor-principal: {COLORS['verde_substituto']};
-            --cor-fundo: {COLORS['fundo']};
-            --cor-texto: {COLORS['escuro']};
-            --cor-secundaria: {COLORS['claro']};
-        }}
-        
-        body {{
-            font-family: 'Segoe UI', sans-serif;
-            background-color: var(--cor-fundo);
-            color: var(--cor-texto);
-            margin: 0; padding: 20px;
-        }}
-        
-        .grid-container-2c {{ display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }}
-        .grid-container-3c-paciente {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }}
-        .grid-container-normalidades {{ display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 5px; align-items: center; }}
-        .grid-container-3c-corpo {{ display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; text-align: center; }}
-        .grid-container-impedancias {{ display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; }}
-        
-        .header {{ margin-bottom: 20px; border-bottom: 2px solid var(--cor-principal); padding-bottom: 10px; }}
-        .logo-cel img {{ max-height: 80px; }}
-        .user-cel {{ text-align: right; font-weight: bold; color: var(--cor-texto); }}
-        
-        .moldura {{ 
-            background: white; 
-            padding: 30px; 
-            border-radius: 10px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-            max-width: 1000px;
-            margin: 0 auto;
-        }}
-
-        h1, h2 {{ color: var(--cor-texto); text-transform: uppercase; font-size: 1.2rem; border-bottom: 1px solid var(--cor-secundaria); padding-bottom: 5px; margin-top: 20px; }}
-        .label {{ font-weight: bold; color: var(--cor-principal); display: inline-block; margin-right: 5px; }}
-        
-        .cel-verde {{ background-color: var(--cor-principal); color: white; padding: 5px; border-radius: 4px; text-align: center; }}
-        .cel-cinza {{ background-color: var(--cor-secundaria); color: var(--cor-texto); padding: 5px; border-radius: 4px; }}
-        .cel-header {{ font-weight: bold; text-align: center; margin-bottom: 5px; }}
-        
-        .lado-corpo {{ font-weight: bold; margin-bottom: 10px; display: block; color: var(--cor-principal); }}
-        .display-centro-corpo-k {{ font-size: 2rem; font-weight: bold; color: var(--cor-texto); margin-top: 20px; }}
-        
-        .barra-baixo {{ border-bottom: 1px dashed var(--cor-secundaria); padding-bottom: 15px; margin-bottom: 15px; }}
-        .grid-container-impedancias > div {{ font-size: 0.85rem; }}
-        .font-bold {{ font-weight: bold; }}
-    </style>
-    """
-
-    # HTML COMPLETO
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head><meta charset="UTF-8">{css_style}</head>
-    <body>
-        <div class="moldura">
-            <div class="header grid-container-2c">
-                <div class="logo-cel">{html_logo}</div>
-                <div class="user-cel">
-                    <div class="nome">{dados.get('user', {}).get('clinicaNome') or 'Minha Clínica'}</div>
-                    <div class="endereco">{datetime.now().strftime('%d/%m/%Y %H:%M')}</div>
-                </div>
-            </div>
-        
-            <div class="dados-paciente barra-baixo">
-                <div class="grid-container-3c-paciente">
-                    <div><span class="label">Nome:</span>{paciente.get('nome')}</div>
-                    <div><span class="label">Estatura:</span>{formatar_numero(paciente.get('estaturaCm',0)/100, 2)}m</div>
-                    <div><span class="label">Data:</span>{datetime.fromisoformat(av.get('data')).strftime('%d/%m/%Y')}</div>
-                    <div><span class="label">Email:</span>{paciente.get('email')}</div>
-                    <div><span class="label">Sexo:</span>{'F' if paciente.get('sexo')==70 else 'M'}</div>
-                    <div><span class="label">Idade:</span>{calcular_idade(paciente.get('dataNascimento'))}</div>
-                </div>
-            </div>
-
-            <h1>Análise Global Resumida</h1>
-            <div class="grid-container-normalidades">
-                <div class="cel-cinza cel-header">Indicador</div> <div class="cel-verde cel-header">Valor</div> <div class="cel-cinza cel-header">Mín</div> <div class="cel-verde cel-header">Máx</div>
-
-                <div class="cel-cinza">Peso</div> <div class="cel-verde">{formatar_numero(av.get('peso'))} kg</div> <div class="cel-cinza">{formatar_numero(corpo.get('pesoMin'))}</div> <div class="cel-verde">{formatar_numero(corpo.get('pesoMax'))}</div>
-                <div class="cel-cinza">IMC</div> <div class="cel-verde">{formatar_numero(corpo.get('bmi'))}</div> <div class="cel-cinza">18,5</div> <div class="cel-verde">24,9</div>
-                <div class="cel-cinza">% Gordura</div> <div class="cel-verde">{formatar_numero(corpo.get('fmPercentual'))}%</div> <div class="cel-cinza">{formatar_numero(corpo.get('fmMinPercentual'))}</div> <div class="cel-verde">{formatar_numero(corpo.get('fmMaxPercentual'))}</div>
-                <div class="cel-cinza">Massa Muscular</div> <div class="cel-verde">{formatar_numero(corpo.get('ssm'))} kg</div> <div class="cel-cinza">{formatar_numero(corpo.get('ssmMin'))}</div> <div class="cel-verde">{formatar_numero(corpo.get('ssmMax'))}</div>
-                <div class="cel-cinza">Água Total</div> <div class="cel-verde">{formatar_numero(corpo.get('tbw'))} L</div> <div class="cel-cinza">{formatar_numero(corpo.get('tbwMin'))}</div> <div class="cel-verde">{formatar_numero(corpo.get('tbwMax'))}</div>
-            </div>
-
-            <h1>Análise de Massa Magra (kg)</h1>
-            <div class="grid-container-3c-corpo">
-                <div><div class="lado-corpo">Direito</div><div><b>Braço:</b> {get_membro(0, 'ffm')}</div><div><b>Tronco:</b> {get_membro(2, 'ffm')}</div><div><b>Perna:</b> {get_membro(3, 'ffm')}</div></div>
-                <div><div class="display-centro-corpo-k">{formatar_numero(corpo.get('ffm'))} kg</div><div>Massa Livre de Gordura Total</div></div>
-                <div><div class="lado-corpo">Esquerdo</div><div><b>Braço:</b> {get_membro(1, 'ffm')}</div><div><b>Tronco:</b> -</div><div><b>Perna:</b> {get_membro(4, 'ffm')}</div></div>
-            </div>
-
-            <h1>Análise de Gordura (kg)</h1>
-            <div class="grid-container-3c-corpo">
-                <div><div class="lado-corpo">Direito</div><div><b>Braço:</b> {get_membro(0, 'fm')}</div><div><b>Tronco:</b> {get_membro(2, 'fm')}</div><div><b>Perna:</b> {get_membro(3, 'fm')}</div></div>
-                <div><div class="display-centro-corpo-k">{formatar_numero(corpo.get('fm'))} kg</div><div>Massa Gorda Total</div></div>
-                <div><div class="lado-corpo">Esquerdo</div><div><b>Braço:</b> {get_membro(1, 'fm')}</div><div><b>Tronco:</b> -</div><div><b>Perna:</b> {get_membro(4, 'fm')}</div></div>
-            </div>
-
-            <div class="grid-container-2c" style="margin-top: 30px;">
-                <div>
-                    <h2>Metabolismo</h2>
-                    <div class="grid-container-2c">
-                        <div class="cel-cinza">Taxa Metabólica Basal</div><div class="cel-verde font-bold">{formatar_numero(av.get('taxaMetabolicaBasal'), 0)} kcal</div>
-                        <div class="cel-cinza">Idade Metabólica</div><div class="cel-verde font-bold">{av.get('idadeMetabolica')} anos</div>
-                        <div class="cel-cinza">Gordura Visceral</div><div class="cel-verde font-bold">Nível {corpo.get('vfl')}</div>
-                    </div>
-                </div>
-                <div>
-                    <h2>Impedâncias (Ω)</h2>
-                    <div class="grid-container-impedancias">
-                        <div class="cel-cinza">Freq</div> <div class="cel-cinza">BD</div> <div class="cel-cinza">BE</div> <div class="cel-cinza">TR</div> <div class="cel-cinza">PD</div> <div class="cel-cinza">PE</div>
-                        <div class="cel-verde">5k</div> <div>{get_imp(5, 'impedanceRightArm')}</div> <div>{get_imp(5, 'impedanceLeftArm')}</div> <div>{get_imp(5, 'impedanceTrunk')}</div> <div>{get_imp(5, 'impedanceRightLeg')}</div> <div>{get_imp(5, 'impedanceLeftLeg')}</div>
-                        <div class="cel-verde">50k</div> <div>{get_imp(50, 'impedanceRightArm')}</div> <div>{get_imp(50, 'impedanceLeftArm')}</div> <div>{get_imp(50, 'impedanceTrunk')}</div> <div>{get_imp(50, 'impedanceRightLeg')}</div> <div>{get_imp(50, 'impedanceLeftLeg')}</div>
-                        <div class="cel-verde">250k</div> <div>{get_imp(250, 'impedanceRightArm')}</div> <div>{get_imp(250, 'impedanceLeftArm')}</div> <div>{get_imp(250, 'impedanceTrunk')}</div> <div>{get_imp(250, 'impedanceRightLeg')}</div> <div>{get_imp(250, 'impedanceLeftLeg')}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-    return html_content
-
-# --- INTERFACE STREAMLIT ---
-
-st.title("🏥 Visualizador de Relatório Personalizado")
-st.markdown("Cole o link completo do relatório Avanutri abaixo para gerar a versão com sua identidade visual.")
-
-url_input = st.text_input("Link do Relatório:", placeholder="https://d196bwsv53491l.cloudfront.net/relatorios/...")
-
-if st.button("Gerar Relatório"):
-    if url_input:
-        with st.spinner("Processando dados e gerando layout..."):
-            dados = obter_dados_api(url_input)
-            
-            if dados:
-                # Carrega logo (Tenta ler arquivo local)
-                logo_b64 = get_base64_logo()
-                
-                # Gera HTML
-                html_final = gerar_html_relatorio(dados, logo_b64)
-                
-                # Renderiza
-                st.components.v1.html(html_final, height=1200, scrolling=True)
-                
-                # Botão Download
-                st.download_button(
-                    label="📥 Baixar HTML para Imprimir/Salvar",
-                    data=html_final,
-                    file_name=f"Relatorio_{dados['paciente']['nome']}.html",
-                    mime="text/html"
-                )
-            else:
-                st.error("Erro: Link inválido ou falha na conexão com Avanutri.")
-    else:
-        st.warning("Cole o link antes de clicar.")
+def obter_dados(url):
+    try:
+        if "#" not in url: return None
+        rid = url.split("#")[1]
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        resp = requests.get(f"https://balancaapi.avanutrionline.com/Relatorio/{rid}", headers=headers)
+        return resp.json() if resp.status_code == 200 else

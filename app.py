@@ -5,7 +5,7 @@ import base64
 import os
 import re
 
-# Configuração da página para usar largura total
+# Configuração da página
 st.set_page_config(layout="wide", page_title="Relatório de Avaliação")
 
 # --- FUNÇÕES AUXILIARES ---
@@ -17,19 +17,19 @@ def get_base64_image(image_path):
             return base64.b64encode(img_file.read()).decode()
     return ""
 
-@st.cache_data(show_spinner=False)
 def fetch_data(report_id):
-    """Busca os dados da API."""
+    """Busca os dados da API usando apenas o ID extraído."""
     url = f"https://balancaapi.avanutrionline.com/Relatorio/{report_id}"
     try:
         response = requests.get(url)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
+        # st.error removido daqui para evitar msg duplicada no rerun, tratado no main
         return None
 
 def extract_id_from_url(input_url):
-    """Extrai o ID após a hashtag #."""
+    """Extrai o ID após a hashtag # ou retorna o próprio input se não houver URL."""
     if not input_url:
         return ""
     if "#" in input_url:
@@ -37,11 +37,11 @@ def extract_id_from_url(input_url):
     return input_url
 
 def sanitize_filename(name):
-    """Limpa o nome para arquivo."""
+    """Limpa o nome para ser usado em arquivo (remove acentos e caracteres ilegais)."""
     clean_name = re.sub(r'[^\w\s-]', '', name).strip().replace(' ', '_')
     return f"RELATORIO_{clean_name}.pdf"
 
-# --- CONFIGURAÇÕES VISUAIS ---
+# --- DEFINIÇÃO DE CORES E ESTILOS ---
 COLOR_PRIMARY = "#9e747a"
 COLOR_BG = "#f5f1f2"
 COLOR_DARK = "#72464e"
@@ -49,11 +49,11 @@ COLOR_LIGHT = "#e2d5d7"
 COLOR_CHART_FILL = "rgba(158, 116, 122, 0.4)"
 COLOR_CHART_STROKE = "rgba(158, 116, 122, 1)"
 
-# Carregar imagens
+# Carregar imagens em Base64
 logo_b64 = get_base64_image("logoTKE.png")
 corpo_b64 = get_base64_image("corpo.png")
 
-# --- CSS DO RELATÓRIO (HTML/JS) ---
+# --- CSS CUSTOMIZADO ---
 custom_css = f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
@@ -61,37 +61,36 @@ custom_css = f"""
     body {{
         font-family: 'Roboto', Arial, sans-serif;
         margin: 0;
-        padding: 0;
-        background-color: transparent; 
+        padding: 20px;
+        background-color: {COLOR_BG}; 
         color: {COLOR_DARK};
         font-size: 10pt;
-        /* Removemos o display flex do body para evitar confusão no renderizador do PDF */
-        display: block; 
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
     }}
 
-    /* Container: Largura exata A4 (794px).
-       Usamos 793px para evitar arredondamentos que criam páginas em branco extras. */
     #container {{
-        width: 793px; 
-        margin: 0 auto; /* Centraliza na tela do PC */
+        width: 800px;
+        margin: auto;
         background-color: {COLOR_BG};
-        padding: 0; /* Padding zero na borda externa, o padding visual vem de dentro */
-        box-sizing: border-box;
+        /* position: relative; removido pois não tem mais botão absoluto */
     }}
 
-    /* --- ESTILOS DE ESTRUTURA --- */
+    /* --- BASE STYLES --- */
     .moldura {{
         border-radius: 10px;
         border: 2px solid {COLOR_LIGHT};
         overflow: hidden;
         background-color: {COLOR_BG};
-        margin: 20px; /* Margem visual DENTRO do A4, não fora */
     }}
 
     .container-padding-lateral {{ padding: 0px 20px; }}
-    .rolavel {{ overflow: visible; }}
+    .rolavel {{ overflow: auto; }}
 
-    h1, h2 {{ color: {COLOR_PRIMARY}; margin-bottom: 4px; }}
+    h1, h2 {{
+        color: {COLOR_PRIMARY};
+        margin-bottom: 4px;
+    }}
     h1 {{ font-size: 20px; }}
     h2 {{ font-size: 15px; }}
 
@@ -102,7 +101,7 @@ custom_css = f"""
     .align-center {{ text-align: center; }}
     .align-right {{ text-align: right; }}
 
-    /* --- CORPO E IMAGENS --- */
+    /* --- CORPO CSS --- */
     .corpo {{
         background-image: url('data:image/png;base64,{corpo_b64}');
         background-position: center;
@@ -118,17 +117,21 @@ custom_css = f"""
     .corpo>div:nth-child(3)>div:nth-child(2) {{ margin-top: 10px; }}
     .corpo>div:nth-child(3)>div:nth-child(3) {{ margin-top: 140px; }}
 
-    .lado-corpo {{ font-size: 1.2em; font-weight: bold; color: {COLOR_LIGHT}; }}
+    .lado-corpo {{
+        font-size: 1.2em;
+        font-weight: bold;
+        color: {COLOR_LIGHT};
+    }}
 
-    /* --- GRIDS --- */
-    .grid-container-2c {{ display: grid; grid-template-columns: 1fr 1fr; grid-gap: 10px; }}
+    /* --- GRID CSS --- */
+    .grid-container-2c {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); grid-gap: 10px; }}
     .grid-container-3c {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); grid-gap: 10px; }}
     .grid-container-3c-p {{ display: grid; grid-template-columns: 1fr 1fr 1fr; grid-gap: 10px; }}
-    .grid-container-6c {{ display: grid; grid-template-columns: repeat(11, 1fr); grid-gap: 0; }}
+    .grid-container-6c {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); grid-gap: 0; }}
     
     .grid-container-3c-paciente {{
         display: grid;
-        grid-template-columns: 2fr 0.8fr 0.8fr;
+        grid-template-columns: minmax(310px, 1fr) minmax(110px, 0.4fr) minmax(110px, 0.4fr);
         grid-gap: 10px;
     }}
 
@@ -136,117 +139,191 @@ custom_css = f"""
     
     .grid-container-normalidades {{
         display: grid;
-        grid-template-columns: 130px 2.3fr 1.8fr 6fr;
+        grid-template-columns: 150px 2.3fr 1.8fr 6fr;
         grid-gap: 3px;
+        min-width: 570px;
     }}
 
     .grid-container-impedancias {{ display: grid; grid-template-columns: 55px 1fr 1fr 1fr 1fr 1fr; grid-gap: 3px; }}
-    .grid-container-3c-dados-adicionais {{ display: grid; grid-template-columns: 1fr 1fr; grid-gap: 10px; }}
+    .grid-container-3c-dados-adicionais {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); grid-gap: 10px; }}
     .grid-container-dados-adicionais {{ display: grid; grid-template-columns: 106px 1fr; grid-gap: 4px; }}
 
     .padding-p {{ padding: 2px 5px; }}
 
-    /* CORES E TABELAS */
-    .cel-cinza, .cel-verde {{ font-weight: bold; color: #FFF; align-items: center; display: grid; }}
-    .cel-cinza {{ background-color: {COLOR_LIGHT}; color: {COLOR_DARK}; }}
-    .cel-verde {{ background-color: {COLOR_PRIMARY}; }}
-    .cel-header {{ color: {COLOR_DARK}; font-size: 16px; font-weight: bold; text-align: center; padding: 4px; }}
-    .cel-verde.cel-header {{ color: #FFF; }}
-    
-    .cel-label {{
-        color: #FFF; font-size: 13px; font-weight: bold; padding: 4px 5px;
-        height: 41px; display: flex; align-items: center;
+    .cel-cinza, .cel-verde {{
+        font-weight: bold;
+        color: #FFF;
+        align-items: center;
+        display: grid;
     }}
 
-    .cel-grafico {{ grid-column: span 3; border-top: {COLOR_DARK} 3px solid; border-left: {COLOR_DARK} 3px solid; }}
+    .cel-cinza {{ background-color: {COLOR_LIGHT}; color: {COLOR_DARK}; }}
+    .cel-verde {{ background-color: {COLOR_PRIMARY}; }}
+
+    .cel-header {{
+        color: {COLOR_DARK};
+        font-size: 18px;
+        font-weight: bold;
+        text-align: center;
+        padding: 4px;
+    }}
+    .cel-verde.cel-header {{ color: #FFF; }}
+
+    .cel-label {{
+        color: #FFF;
+        font-size: 14px;
+        font-weight: bold;
+        padding: 4px 10px;
+        height: 41px;
+        display: flex;
+        align-items: center;
+    }}
+
+    .cel-grafico {{
+        grid-column: span 3;
+        border-top: {COLOR_DARK} 3px solid;
+        border-left: {COLOR_DARK} 3px solid;
+    }}
+
     #valor-idade-metabolica {{ display: inline-flex; align-items: center; justify-content: center; width: 100%; }}
 
-    /* HEADER */
-    .header {{ margin-bottom: 10px; padding: 0 20px; /* Padding apenas no header interno */ }}
+    /* --- STYLES GERAIS --- */
+    .header {{ margin-bottom: 10px; }}
     .logo-cel img {{ max-height: 80px; }}
     .user-cel {{ text-align: right; color: {COLOR_DARK}; }}
     .user-cel .nome {{ font-size: 12pt; font-weight: bold; }}
     
-    .dados-paciente {{ background-color: {COLOR_BG}; padding: 10px 20px; border-bottom: 1px solid {COLOR_LIGHT}; }}
-    .dados-paciente .label {{ font-weight: bold; color: {COLOR_DARK}; display: inline; }}
-    .barra-baixo {{ border-bottom: 5px solid {COLOR_PRIMARY}; padding-bottom: 12px; }}
-
-    .barra-corpos {{
-        width: 5px; background-color: {COLOR_PRIMARY}; height: 334px;
-        position: absolute; left: calc(50% - 2.5px); margin-top: 15px;
+    .dados-paciente {{
+        background-color: {COLOR_BG};
+        padding: 10px 20px;
+        border-bottom: 1px solid {COLOR_LIGHT};
     }}
 
-    /* GRÁFICOS PEQUENOS */
-    .grafico-valores {{ display: grid; grid-template-columns: repeat(11, 1fr); grid-gap: 2px; }}
+    .dados-paciente .label {{
+        font-weight: bold;
+        color: {COLOR_DARK};
+        display: inline;
+    }}
+
+    .barra-baixo {{
+        border-bottom: 5px solid {COLOR_PRIMARY};
+        padding-bottom: 12px;
+    }}
+
+    .barra-corpos {{
+        width: 5px;
+        background-color: {COLOR_PRIMARY};
+        height: 334px;
+        position: absolute;
+        left: calc(50% - 2.5px);
+        margin-top: 15px;
+    }}
+
+    .grafico-valores {{
+        display: grid;
+        grid-template-columns: repeat(11, 1fr);
+        grid-gap: 2px;
+    }}
+    
     .grafico-valores>div {{ text-align: center; }}
-    .grafico-valores>div>div {{ background-color: {COLOR_DARK}; width: 2px; height: 5px; display: block; margin-left: calc(50% - 1px); }}
-    .barra-grafico-container {{ font-size: 18px; font-weight: bold; margin-top: 2px; }}
-    .barra-grafico {{ background-color: {COLOR_DARK}; height: 15px; display: inline-block; margin-right: 10px; max-width: calc(100% - 70px); }}
+    .grafico-valores>div>div {{
+        background-color: {COLOR_DARK};
+        width: 2px; height: 5px; display: block; margin-left: calc(50% - 1px);
+    }}
+
+    .barra-grafico-container {{ font-size: 20px; font-weight: bold; margin-top: 2px; }}
+    .barra-grafico {{
+        background-color: {COLOR_DARK};
+        height: 15px; display: inline-block; margin-right: 10px; max-width: calc(100% - 70px);
+    }}
 
     .cel-grafico-p {{ border-top: {COLOR_DARK} 1px solid; border-left: {COLOR_DARK} 1px solid; }}
     .barra-grafico-p-container {{ font-size: 12px; font-weight: bold; margin-top: 3px; }}
     .barra-grafico-p {{ background-color: {COLOR_DARK}; height: 7px; display: inline-block; margin-right: 10px; }}
 
-    /* TABELA DE HISTÓRICO */
-    #charts {{ width: 100%; border-collapse: separate; border-spacing: 5px; }}
+    #charts {{ width: 100%; min-width: 750px; border-collapse: separate; border-spacing: 5px; }}
+    
     #charts tr td:nth-child(1) {{
-        width: 110px; background-color: {COLOR_PRIMARY}; font-weight: bold; color: #FFF; padding: 8px; min-height: 32px; font-size: 12px;
+        width: 110px;
+        background-color: {COLOR_PRIMARY};
+        font-weight: bold;
+        color: #FFF;
+        padding: 10px;
+        min-height: 32px;
     }}
 
     .chartPlaceholder {{
-        position: absolute; width: calc(81.5% + 30px); height: 56px;
+        position: absolute;
+        width: calc(81.5% + 30px); height: 56px;
         overflow: hidden; left: calc(8.33% - 5px);
     }}
+
     .graficos-tr {{ height: 38px; }}
     .valor-label {{
-        border-right: dashed 2px {COLOR_LIGHT}; height: 56px; font-size: 11px; padding: 0 5px; z-index: 1000; color: {COLOR_DARK};
+        border-right: dashed 2px {COLOR_LIGHT};
+        height: 56px; font-size: 11px; padding: 0 8px; z-index: 1000;
+        color: {COLOR_DARK};
     }}
+
     .grafico-label {{
-        text-align: center; font-weight: bold; font-size: 11px; color: {COLOR_DARK}; background-color: {COLOR_LIGHT}; padding: 3px;
+        text-align: center; font-weight: bold; font-size: 12px;
+        color: {COLOR_DARK};
+        background-color: {COLOR_LIGHT};
+        padding: 3px;
     }}
     .datas {{ grid-gap: 3px; height: 20px; }}
     .quebra-de-pagina {{ page-break-before: always; }}
 
-    @media (max-width: 800px) {{
-        #container {{ width: 100%; transform: scale(0.9); transform-origin: top left; }}
+    @media (max-width: 700px) {{
+        #container {{ width: 100%; }}
+        .grid-container-normalidades {{ min-width: 100%; }}
         .barra-corpos {{ display: none; }}
+        .grid-container-3c-paciente {{ grid-template-columns: 1fr; }}
     }}
 </style>
 """
 
-# --- LÓGICA DO STREAMLIT ---
+# --- LÓGICA DO APP ---
 
 col_input, col_btn = st.columns([4, 1])
 
-# 1. Interface de Entrada
+# 1. Interface de Input
 with col_input:
     url_input = st.text_input(
         "Link do Relatório", 
-        placeholder="Cole o link ou ID aqui (Ex: ...#CODIGO-DO-RELATORIO)",
+        placeholder="Cole aqui o link completo (Ex: https://...#CODIGO-DO-RELATORIO)",
         label_visibility="collapsed"
     )
 
 report_id = extract_id_from_url(url_input)
 data = None
-download_trigger = "false"
+download_trigger = "false" # Flag para controle do JavaScript
 
+# 2. Lógica de Busca e Botão
 if report_id:
-    with st.spinner('Carregando relatório...'):
+    with st.spinner('Carregando dados...'):
         data = fetch_data(report_id)
-
-    # 2. Interface do Botão
-    with col_btn:
-        if st.button("Baixar PDF", type="primary", use_container_width=True):
-            download_trigger = "true"
+        
+    if data:
+        # Mostra o botão apenas se os dados existirem
+        with col_btn:
+            # Se clicar, recarrega a página com download_trigger = true
+            if st.button("Baixar PDF", type="primary", use_container_width=True):
+                download_trigger = "true"
+    else:
+        st.error("Não foi possível carregar os dados. Verifique o Link/ID.")
 else:
     with col_btn:
-        st.button("Baixar PDF", disabled=True, use_container_width=True)
+         st.button("Baixar PDF", disabled=True, use_container_width=True)
+
 
 # 3. Geração do Relatório
 if data:
+    # Definir o nome do arquivo com base no nome do paciente
     nome_paciente = data.get('paciente', {}).get('nome', 'Paciente')
     nome_arquivo_pdf = sanitize_filename(nome_paciente)
 
+    # Traduções e Injeção de Dados
     translations_pt = json.dumps({
         "titulo": "Relatório de Avaliações", "nome": "Nome: ", "estatura": "Estatura: ", "data": "Data: ",
         "email": "E-mail: ", "sexo": "Sexo: ", "idade": "Idade: ", "analiseGlobalResumida_titulo": "Análise Global Resumida",
@@ -274,8 +351,8 @@ if data:
     <script>
         const apiData = {json_data};
         const translations = {translations_pt};
-        const fileName = "{nome_arquivo_pdf}";
-        const shouldDownload = {download_trigger};
+        const fileName = "{nome_arquivo_pdf}"; // Nome do arquivo vindo do Python
+        const shouldDownload = {download_trigger}; // Variável de controle vinda do Python
         var lang = "pt";
 
         const sexoTraducoes = {{ pt: {{ male: "Masculino", female: "Feminino" }} }};
@@ -294,9 +371,11 @@ if data:
             popularDadosAdicionais(ultimaAvaliacao);
             criaLabelGrafico(data.avaliacoes);
             criarGraficos(data);
-
+            
+            // GATILHO AUTOMÁTICO DE DOWNLOAD
             if (shouldDownload) {{
-                setTimeout(downloadPDF, 1500); // 1.5s delay para garantir renderização dos gráficos
+                // Pequeno delay para garantir que os gráficos renderizaram antes de baixar
+                setTimeout(downloadPDF, 1500);
             }}
         }});
 
@@ -304,26 +383,24 @@ if data:
             const element = document.getElementById('container');
             
             const opt = {{
-                margin:       0, // MARGEM ZERO para usar o design interno
+                margin:       [0, 0, 0, 0], 
                 filename:     fileName,
                 image:        {{ type: 'jpeg', quality: 0.98 }},
-                html2canvas:  {{ 
-                    scale: 2, 
-                    useCORS: true, 
-                    logging: false,
-                    scrollY: 0,
-                    windowWidth: 793 // Força o renderizador a ver a largura exata A4
-                }},
+                html2canvas:  {{ scale: 2, useCORS: true, logging: true }}, 
                 jsPDF:        {{ unit: 'mm', format: 'a4', orientation: 'portrait' }}
             }};
 
             html2pdf().set(opt).from(element).save();
         }}
 
-        function aplicarTraducoes() {{ document.querySelectorAll("[data-translate]").forEach(el => {{ const key = el.getAttribute("data-translate"); el.innerText = translations[key] || key; }}); }}
-        
+        function aplicarTraducoes() {{
+            document.querySelectorAll("[data-translate]").forEach(el => {{
+                const key = el.getAttribute("data-translate");
+                el.innerText = translations[key] || key;
+            }});
+        }}
+
         function criarGraficos(data) {{
-            const config = {{ chart: {{ animations: {{ enabled: false }} }} }};
             criarGrafico(data.avaliacoes, "peso", translations["peso_h"], "peso_h");
             criarGrafico(data.avaliacoes, "dadosCorpo.fmPercentual", translations["percentualGordura_h"], "percentualGordura_h");
             criarGrafico(data.avaliacoes, "dadosCorpo.fm", translations["massaGordura_h"], "massaGordura_h");
@@ -339,11 +416,21 @@ if data:
             const labels = avaliacoes.map(avaliacao => formatarData(avaliacao.data));
             while (labels.length < 6) {{ labels.push(null); }}
             const container = document.getElementById("charts");
-            const tr = document.createElement("tr"); tr.className = "graficos-tr"; container.appendChild(tr);
-            const td1 = document.createElement("td"); tr.appendChild(td1);
-            const td2 = document.createElement("td"); tr.appendChild(td2);
-            const valoresLabel = document.createElement('div'); valoresLabel.className = "grid-container-6c datas";
-            labels.forEach(l => {{ const label = document.createElement("div"); label.className = "grafico-label"; label.innerText = l; valoresLabel.appendChild(label); }});
+            const tr = document.createElement("tr");
+            tr.className = "graficos-tr";
+            container.appendChild(tr);
+            const td1 = document.createElement("td");
+            tr.appendChild(td1);
+            const td2 = document.createElement("td");
+            tr.appendChild(td2);
+            const valoresLabel = document.createElement('div');
+            valoresLabel.className = "grid-container-6c datas";
+            labels.forEach(l => {{
+                const label = document.createElement("div");
+                label.className = "grafico-label";
+                label.innerText = l;
+                valoresLabel.appendChild(label);
+            }});
             td2.appendChild(valoresLabel);
         }}
 
@@ -351,33 +438,69 @@ if data:
             const valores = avaliacoesData.map(avaliacao => obterValor(avaliacao, prop));
             while (valores.length < 6) {{ valores.push(null); }}
             const container = document.getElementById("charts");
-            const tr = document.createElement("tr"); tr.className = "graficos-tr"; container.appendChild(tr);
-            const td1 = document.createElement("td"); tr.appendChild(td1);
-            const labelElement = document.createElement('label'); labelElement.innerText = label; td1.appendChild(labelElement);
-            const td2 = document.createElement("td"); tr.appendChild(td2);
-            const chartPlaceholder = document.createElement('div'); chartPlaceholder.className = "chartPlaceholder"; td2.appendChild(chartPlaceholder);
-            const valoresLabel = document.createElement('div'); valoresLabel.className = "grid-container-6c";
-            valores.forEach(v => {{ const valorLabel = document.createElement("div"); valorLabel.className = "valor-label"; if (v) valorLabel.innerText = utilizarFormaDecimalPadrao ? formatarNumeroDecimalBrasileiro(v) : formatarNumeroBrasileiro(v); valoresLabel.appendChild(valorLabel); }});
+            const tr = document.createElement("tr");
+            tr.className = "graficos-tr";
+            container.appendChild(tr);
+            const td1 = document.createElement("td");
+            tr.appendChild(td1);
+            const labelElement = document.createElement('label');
+            labelElement.innerText = label;
+            td1.appendChild(labelElement);
+            const td2 = document.createElement("td");
+            tr.appendChild(td2);
+            const chartPlaceholder = document.createElement('div');
+            chartPlaceholder.className = "chartPlaceholder";
+            td2.appendChild(chartPlaceholder);
+            const valoresLabel = document.createElement('div');
+            valoresLabel.className = "grid-container-6c";
+            valores.forEach(v => {{
+                const valorLabel = document.createElement("div");
+                valorLabel.className = "valor-label";
+                if (v)
+                     valorLabel.innerText = utilizarFormaDecimalPadrao ? formatarNumeroDecimalBrasileiro(v) : formatarNumeroBrasileiro(v);
+                valoresLabel.appendChild(valorLabel);
+            }});
             td2.appendChild(valoresLabel);
             var options = {{
                 series: [{{ data: valores }}],
-                chart: {{ height: 90, type: 'area', zoom: {{ enabled: false }}, animations: {{ enabled: false }}, toolbar: {{ show: false }}, offsetX: -7, offsetY: -25 }},
+                chart: {{
+                    height: 90, type: 'area', zoom: {{ enabled: false }},
+                    animations: {{ enabled: false }}, // IMPORTANTE: Desativar animações para o PDF
+                    toolbar: {{ show: false }}, offsetX: -7, offsetY: -25
+                }},
                 dataLabels: {{ enabled: false }},
-                stroke: {{ curve: 'straight', width: 2, colors: ["{COLOR_CHART_STROKE}"] }},
-                fill: {{ colors: ["{COLOR_CHART_FILL}"] }},
-                xaxis: {{ labels: {{ show: false }} }}, yaxis: {{ show: false }}, grid: {{ show: false }},
-                markers: {{ size: 4, colors: ["#fff"], strokeColors: ["{COLOR_CHART_STROKE}"], strokeWidth: 2, hover: {{ size: 7 }} }}
+                stroke: {{
+                    curve: 'straight', width: 2,
+                    colors: ["{COLOR_CHART_STROKE}"]
+                }},
+                fill: {{
+                    colors: ["{COLOR_CHART_FILL}"]
+                }},
+                xaxis: {{ labels: {{ show: false }} }},
+                yaxis: {{ show: false }},
+                grid: {{ show: false }},
+                markers: {{
+                    size: 4, colors: ["#fff"],
+                    strokeColors: ["{COLOR_CHART_STROKE}"],
+                    strokeWidth: 2, hover: {{ size: 7 }}
+                }}
             }};
             const chart = new ApexCharts(chartPlaceholder, options);
             chart.render();
         }}
 
         function obterValor(objeto, referencia) {{
-            var partes = referencia.split("."); var valor = objeto;
-            for (var i = 0; i < partes.length; i++) {{ var parte = partes[i]; if (isNaN(parte)) {{ valor = valor[parte]; }} else {{ valor = valor[Number(parte)]; }} }}
+            var partes = referencia.split(".");
+            var valor = objeto;
+            for (var i = 0; i < partes.length; i++) {{
+                var parte = partes[i];
+                if (isNaN(parte)) {{ valor = valor[parte]; }} else {{ valor = valor[Number(parte)]; }}
+            }}
             return valor;
         }}
+
         function formatarData(jsonDate) {{ return formatarDataBrasileira(jsonDate); }}
+
         function popularDadosPaciente(pacienteData) {{
             document.getElementById("paciente-nome").innerText = pacienteData.nome;
             document.getElementById("sexo").innerText = pacienteData.sexo == 70 ? sexoTraducoes[lang]["female"] : sexoTraducoes[lang]["male"];
@@ -385,6 +508,7 @@ if data:
             document.getElementById("idade").innerText = calcularIdade(pacienteData.dataNascimento);
             document.getElementById("email").innerText = pacienteData.email;
         }}
+
         function popularDadosUsuario(userData) {{
             if (userData.clinicaNome) {{
                 document.getElementById("nome").innerText = userData.clinicaNome;
@@ -394,13 +518,32 @@ if data:
                 document.getElementById("endereco").innerHTML = `${{userData.endereco ?? ""}} ${{userData.complemento ?? ""}}<br />${{userData.cep ?? ""}} - ${{userData.municipio ?? ""}} - ${{userData.uf ?? ""}}`;
             }}
         }}
+
         function formatarDataBrasileira(jsonDate) {{
-            const date = new Date(jsonDate); const dia = date.getDate().toString().padStart(2, "0"); const mes = (date.getMonth() + 1).toString().padStart(2, "0"); const ano = date.getFullYear(); const horas = date.getHours().toString().padStart(2, "0"); const minutos = date.getMinutes().toString().padStart(2, "0");
+            const date = new Date(jsonDate);
+            const dia = date.getDate().toString().padStart(2, "0");
+            const mes = (date.getMonth() + 1).toString().padStart(2, "0");
+            const ano = date.getFullYear();
+            const horas = date.getHours().toString().padStart(2, "0");
+            const minutos = date.getMinutes().toString().padStart(2, "0");
             return `${{dia}}/${{mes}}/${{ano}} ${{horas}}:${{minutos}}`;
         }}
-        function calcularIdade(dataNascimento) {{ const dateNascimento = new Date(dataNascimento); const dataAtual = new Date(); const diferenca = dataAtual - dateNascimento; return Math.floor(diferenca / (1000 * 60 * 60 * 24 * 365.25)); }}
-        function formatarNumeroBrasileiro(numero, casasDecimais) {{ return numero.toLocaleString('pt-BR', {{ minimumFractionDigits: 0, maximumFractionDigits: casasDecimais == undefined ? 1 : casasDecimais }}); }}
-        function formatarNumeroDecimalBrasileiro(numero) {{ return numero.toLocaleString('pt-BR', {{ minimumFractionDigits: 1, maximumFractionDigits: 1 }}); }}
+
+        function calcularIdade(dataNascimento) {{
+            const dateNascimento = new Date(dataNascimento);
+            const dataAtual = new Date();
+            const diferenca = dataAtual - dateNascimento;
+            return Math.floor(diferenca / (1000 * 60 * 60 * 24 * 365.25));
+        }}
+
+        function formatarNumeroBrasileiro(numero, casasDecimais) {{
+            return numero.toLocaleString('pt-BR', {{ minimumFractionDigits: 0, maximumFractionDigits: casasDecimais == undefined ? 1 : casasDecimais }});
+        }}
+
+        function formatarNumeroDecimalBrasileiro(numero) {{
+            return numero.toLocaleString('pt-BR', {{ minimumFractionDigits: 1, maximumFractionDigits: 1 }});
+        }}
+
         function popularNormalidades(avaliacaoData, normalidades) {{
             popularNormalidade(normalidades.peso, "normalidadePeso", avaliacaoData.peso, "", 1);
             popularNormalidade(normalidades.fmPerc, "normalidadeFMPerc", avaliacaoData.dadosCorpo.fmPercentual, "", 1);
@@ -409,17 +552,31 @@ if data:
             popularNormalidade(normalidades.tbw, "normalidadeTBW", avaliacaoData.dadosCorpo.tbw, "", 1);
             popularNormalidade(normalidades.bmi, "normalidadeBMI", avaliacaoData.dadosCorpo.bmi, "", 1);
         }}
+
         function popularNormalidade(normalidade, idElemento, valor, unidade, casasDecimaisEscala) {{
             casasDecimaisEscala = casasDecimaisEscala == undefined ? 0 : casasDecimaisEscala;
             let numerosEscala = gerarSequenciaComDiferencaFixa(normalidade.minimo, normalidade.maximo, 11);
-            let html = ""; numerosEscala.forEach(n => {{ html += `<div><div></div><label>${{formatarNumeroBrasileiro(n, casasDecimaisEscala)}}</label></div>` }});
+            let html = "";
+            numerosEscala.forEach(n => {{
+                html += `<div><div></div><label>${{formatarNumeroBrasileiro(n, casasDecimaisEscala)}}</label></div>`
+            }});
             document.getElementById(idElemento).querySelector(".grafico-valores").innerHTML = html;
             document.getElementById(idElemento).querySelector(".barra-grafico-container label").innerHTML = (casasDecimaisEscala == 1 ? formatarNumeroDecimalBrasileiro(valor) : formatarNumeroBrasileiro(valor, casasDecimaisEscala)) + unidade;
             let percentual = converterValorParaPercentualGrafico(valor, normalidade.minimo, normalidade.maximo);
             document.getElementById(idElemento).querySelector(".barra-grafico").style.width = Math.round(percentual) + "%";
         }}
-        function converterValorParaPercentualGrafico(valor, minimoNormal, maximoNormal) {{ const valorEscalaA = (valor - minimoNormal) * (41 - 23) / (maximoNormal - minimoNormal) + 23; return valorEscalaA; }}
-        function gerarSequenciaComDiferencaFixa(terceiro, quinto, quantidade) {{ const diferenca = (quinto - terceiro) / 2; const sequencia = Array.from({{ length: quantidade }}, (_, index) => terceiro + (index - 2) * diferenca); return sequencia; }}
+
+        function converterValorParaPercentualGrafico(valor, minimoNormal, maximoNormal) {{
+            const valorEscalaA = (valor - minimoNormal) * (41 - 23) / (maximoNormal - minimoNormal) + 23;
+            return valorEscalaA;
+        }}
+
+        function gerarSequenciaComDiferencaFixa(terceiro, quinto, quantidade) {{
+            const diferenca = (quinto - terceiro) / 2;
+            const sequencia = Array.from({{ length: quantidade }}, (_, index) => terceiro + (index - 2) * diferenca);
+            return sequencia;
+        }}
+        
         function popularDadosMembros(dadosMembro, avaliacao) {{
            document.getElementById("mm-bd-k").innerText = formatarNumeroDecimalBrasileiro(dadosMembro[0].composicaoCorporal.ffm) + "kg";
            document.getElementById("mm-bd-p").innerText = formatarNumeroBrasileiro(dadosMembro[0].composicaoCorporal.ffm / avaliacao.peso * 100) + "%";
@@ -447,6 +604,7 @@ if data:
            document.getElementById("g-c-k").innerText = formatarNumeroDecimalBrasileiro(avaliacao.dadosCorpo.fm) + "kg";
            document.getElementById("g-c-p").innerText = formatarNumeroBrasileiro(avaliacao.dadosCorpo.fm / avaliacao.peso * 100) + "%";
         }}
+
         function popularDadosAdicionais(avaliacao) {{
             document.getElementById("valor-taxa-metabolica-basal").innerText = formatarNumeroBrasileiro(avaliacao.taxaMetabolicaBasal, 0) + " kcal";
             document.getElementById("valor-indice-apendicular").innerText = formatarNumeroBrasileiro(avaliacao.dadosCorpo.indiceApendicular, 2) + " kg/m²";
@@ -619,5 +777,3 @@ if data:
     """
     
     st.components.v1.html(html_content, height=1400, scrolling=True)
-elif report_id:
-    st.error("Relatório não encontrado ou erro na conexão.")

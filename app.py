@@ -17,7 +17,6 @@ def get_base64_image(image_path):
             return base64.b64encode(img_file.read()).decode()
     return ""
 
-# Cache para evitar recarregar a API toda vez que clicar no botão
 @st.cache_data(show_spinner=False)
 def fetch_data(report_id):
     """Busca os dados da API."""
@@ -55,7 +54,6 @@ logo_b64 = get_base64_image("logoTKE.png")
 corpo_b64 = get_base64_image("corpo.png")
 
 # --- CSS DO RELATÓRIO (HTML/JS) ---
-# Ajustado para largura A4 (aprox 794px) para garantir proporção perfeita no PDF
 custom_css = f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
@@ -67,16 +65,17 @@ custom_css = f"""
         background-color: transparent; 
         color: {COLOR_DARK};
         font-size: 10pt;
-        display: flex;
-        justify-content: center; /* Centraliza visualmente na tela */
+        /* Removemos o display flex do body para evitar confusão no renderizador do PDF */
+        display: block; 
     }}
 
-    /* Container simula uma folha A4 */
+    /* Container: Largura exata A4 (794px).
+       Usamos 793px para evitar arredondamentos que criam páginas em branco extras. */
     #container {{
-        width: 780px; /* Largura levemente menor que A4 (794px) para margem de segurança */
-        margin: 0 auto;
+        width: 793px; 
+        margin: 0 auto; /* Centraliza na tela do PC */
         background-color: {COLOR_BG};
-        padding: 20px;
+        padding: 0; /* Padding zero na borda externa, o padding visual vem de dentro */
         box-sizing: border-box;
     }}
 
@@ -86,10 +85,11 @@ custom_css = f"""
         border: 2px solid {COLOR_LIGHT};
         overflow: hidden;
         background-color: {COLOR_BG};
+        margin: 20px; /* Margem visual DENTRO do A4, não fora */
     }}
 
     .container-padding-lateral {{ padding: 0px 20px; }}
-    .rolavel {{ overflow: visible; }} /* Alterado de auto para visible para imprimir tudo */
+    .rolavel {{ overflow: visible; }}
 
     h1, h2 {{ color: {COLOR_PRIMARY}; margin-bottom: 4px; }}
     h1 {{ font-size: 20px; }}
@@ -121,14 +121,14 @@ custom_css = f"""
     .lado-corpo {{ font-size: 1.2em; font-weight: bold; color: {COLOR_LIGHT}; }}
 
     /* --- GRIDS --- */
-    .grid-container-2c {{ display: grid; grid-template-columns: 1fr 1fr; grid-gap: 10px; }} /* Fixo 2 colunas */
+    .grid-container-2c {{ display: grid; grid-template-columns: 1fr 1fr; grid-gap: 10px; }}
     .grid-container-3c {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); grid-gap: 10px; }}
     .grid-container-3c-p {{ display: grid; grid-template-columns: 1fr 1fr 1fr; grid-gap: 10px; }}
-    .grid-container-6c {{ display: grid; grid-template-columns: repeat(11, 1fr); grid-gap: 0; }} /* Fixo 11 colunas p/ graficos */
+    .grid-container-6c {{ display: grid; grid-template-columns: repeat(11, 1fr); grid-gap: 0; }}
     
     .grid-container-3c-paciente {{
         display: grid;
-        grid-template-columns: 2fr 0.8fr 0.8fr; /* Proporção ajustada */
+        grid-template-columns: 2fr 0.8fr 0.8fr;
         grid-gap: 10px;
     }}
 
@@ -136,7 +136,7 @@ custom_css = f"""
     
     .grid-container-normalidades {{
         display: grid;
-        grid-template-columns: 130px 2.3fr 1.8fr 6fr; /* Ajustado para caber */
+        grid-template-columns: 130px 2.3fr 1.8fr 6fr;
         grid-gap: 3px;
     }}
 
@@ -162,7 +162,7 @@ custom_css = f"""
     #valor-idade-metabolica {{ display: inline-flex; align-items: center; justify-content: center; width: 100%; }}
 
     /* HEADER */
-    .header {{ margin-bottom: 10px; }}
+    .header {{ margin-bottom: 10px; padding: 0 20px; /* Padding apenas no header interno */ }}
     .logo-cel img {{ max-height: 80px; }}
     .user-cel {{ text-align: right; color: {COLOR_DARK}; }}
     .user-cel .nome {{ font-size: 12pt; font-weight: bold; }}
@@ -207,7 +207,6 @@ custom_css = f"""
     .datas {{ grid-gap: 3px; height: 20px; }}
     .quebra-de-pagina {{ page-break-before: always; }}
 
-    /* Ajuste para telas pequenas APENAS na visualização web */
     @media (max-width: 800px) {{
         #container {{ width: 100%; transform: scale(0.9); transform-origin: top left; }}
         .barra-corpos {{ display: none; }}
@@ -227,18 +226,15 @@ with col_input:
         label_visibility="collapsed"
     )
 
-# Lógica de extração e busca
 report_id = extract_id_from_url(url_input)
 data = None
-download_trigger = "false" # Padrão: não baixar
+download_trigger = "false"
 
 if report_id:
-    # Busca dados (com cache)
     with st.spinner('Carregando relatório...'):
         data = fetch_data(report_id)
 
     # 2. Interface do Botão
-    # O botão fica no Streamlit. Se clicado, a variável download_trigger vira "true"
     with col_btn:
         if st.button("Baixar PDF", type="primary", use_container_width=True):
             download_trigger = "true"
@@ -251,7 +247,6 @@ if data:
     nome_paciente = data.get('paciente', {}).get('nome', 'Paciente')
     nome_arquivo_pdf = sanitize_filename(nome_paciente)
 
-    # Traduções (Minificadas)
     translations_pt = json.dumps({
         "titulo": "Relatório de Avaliações", "nome": "Nome: ", "estatura": "Estatura: ", "data": "Data: ",
         "email": "E-mail: ", "sexo": "Sexo: ", "idade": "Idade: ", "analiseGlobalResumida_titulo": "Análise Global Resumida",
@@ -275,13 +270,12 @@ if data:
 
     json_data = json.dumps(data)
     
-    # Script JS com lógica de Trigger e Margens
     js_script = f"""
     <script>
         const apiData = {json_data};
         const translations = {translations_pt};
         const fileName = "{nome_arquivo_pdf}";
-        const shouldDownload = {download_trigger}; // Recebe do Python
+        const shouldDownload = {download_trigger};
         var lang = "pt";
 
         const sexoTraducoes = {{ pt: {{ male: "Masculino", female: "Feminino" }} }};
@@ -301,10 +295,8 @@ if data:
             criaLabelGrafico(data.avaliacoes);
             criarGraficos(data);
 
-            // GATILHO: Se o botão do Python foi clicado, roda o download
             if (shouldDownload) {{
-                // Pequeno delay para garantir que os gráficos renderizaram
-                setTimeout(downloadPDF, 1000);
+                setTimeout(downloadPDF, 1500); // 1.5s delay para garantir renderização dos gráficos
             }}
         }});
 
@@ -312,23 +304,26 @@ if data:
             const element = document.getElementById('container');
             
             const opt = {{
-                margin:       [10, 10, 10, 10], // Margens: Top, Left, Bottom, Right (mm)
+                margin:       0, // MARGEM ZERO para usar o design interno
                 filename:     fileName,
                 image:        {{ type: 'jpeg', quality: 0.98 }},
-                html2canvas:  {{ scale: 2, useCORS: true, logging: false }},
+                html2canvas:  {{ 
+                    scale: 2, 
+                    useCORS: true, 
+                    logging: false,
+                    scrollY: 0,
+                    windowWidth: 793 // Força o renderizador a ver a largura exata A4
+                }},
                 jsPDF:        {{ unit: 'mm', format: 'a4', orientation: 'portrait' }}
             }};
 
             html2pdf().set(opt).from(element).save();
         }}
 
-        // --- FUNÇÕES DE POPULAÇÃO (Mantidas iguais, apenas compactadas para o exemplo) ---
         function aplicarTraducoes() {{ document.querySelectorAll("[data-translate]").forEach(el => {{ const key = el.getAttribute("data-translate"); el.innerText = translations[key] || key; }}); }}
         
         function criarGraficos(data) {{
-            // Desativando animações para o PDF sair completo
             const config = {{ chart: {{ animations: {{ enabled: false }} }} }};
-            
             criarGrafico(data.avaliacoes, "peso", translations["peso_h"], "peso_h");
             criarGrafico(data.avaliacoes, "dadosCorpo.fmPercentual", translations["percentualGordura_h"], "percentualGordura_h");
             criarGrafico(data.avaliacoes, "dadosCorpo.fm", translations["massaGordura_h"], "massaGordura_h");
@@ -426,7 +421,6 @@ if data:
         function converterValorParaPercentualGrafico(valor, minimoNormal, maximoNormal) {{ const valorEscalaA = (valor - minimoNormal) * (41 - 23) / (maximoNormal - minimoNormal) + 23; return valorEscalaA; }}
         function gerarSequenciaComDiferencaFixa(terceiro, quinto, quantidade) {{ const diferenca = (quinto - terceiro) / 2; const sequencia = Array.from({{ length: quantidade }}, (_, index) => terceiro + (index - 2) * diferenca); return sequencia; }}
         function popularDadosMembros(dadosMembro, avaliacao) {{
-            // Simplificado para exibição, código completo no script original
            document.getElementById("mm-bd-k").innerText = formatarNumeroDecimalBrasileiro(dadosMembro[0].composicaoCorporal.ffm) + "kg";
            document.getElementById("mm-bd-p").innerText = formatarNumeroBrasileiro(dadosMembro[0].composicaoCorporal.ffm / avaliacao.peso * 100) + "%";
            document.getElementById("mm-be-k").innerText = formatarNumeroDecimalBrasileiro(dadosMembro[1].composicaoCorporal.ffm) + "kg";

@@ -3,6 +3,7 @@ import requests
 import json
 import base64
 import os
+import re
 
 # Configuração da página
 st.set_page_config(layout="wide", page_title="Relatório de Avaliação")
@@ -18,7 +19,6 @@ def get_base64_image(image_path):
 
 def fetch_data(report_id):
     """Busca os dados da API usando apenas o ID extraído."""
-    # A API precisa apenas do ID, não da URL completa
     url = f"https://balancaapi.avanutrionline.com/Relatorio/{report_id}"
     try:
         response = requests.get(url)
@@ -32,13 +32,15 @@ def extract_id_from_url(input_url):
     """Extrai o ID após a hashtag # ou retorna o próprio input se não houver URL."""
     if not input_url:
         return ""
-    
-    # Se tiver '#', pega a última parte
     if "#" in input_url:
         return input_url.split("#")[-1]
-    
-    # Se não tiver '#', assumimos que o usuário colou apenas o ID
     return input_url
+
+def sanitize_filename(name):
+    """Limpa o nome para ser usado em arquivo (remove acentos e caracteres ilegais)."""
+    # Remove caracteres inválidos e substitui espaços por _
+    clean_name = re.sub(r'[^\w\s-]', '', name).strip().replace(' ', '_')
+    return f"RELATORIO_{clean_name}.pdf"
 
 # --- DEFINIÇÃO DE CORES E ESTILOS ---
 COLOR_PRIMARY = "#9e747a"
@@ -72,6 +74,28 @@ custom_css = f"""
         width: 800px;
         margin: auto;
         background-color: {COLOR_BG};
+        position: relative; /* Para posicionar o botão */
+    }}
+
+    /* Botão de Download Style */
+    #btn-download {{
+        position: absolute;
+        top: -50px;
+        right: 0;
+        background-color: {COLOR_PRIMARY};
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: bold;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        z-index: 9999;
+    }}
+    
+    #btn-download:hover {{
+        background-color: {COLOR_DARK};
     }}
 
     /* --- BASE STYLES --- */
@@ -294,14 +318,15 @@ with col_input:
 report_id = extract_id_from_url(url_input)
 
 if report_id:
-    # Mostra o ID extraído apenas para confirmação visual (opcional)
-    # st.caption(f"ID Extraído: {report_id}") 
-    
     with st.spinner('Carregando dados e gerando relatório...'):
         data = fetch_data(report_id)
 
         if data:
-            # Traduções e Injeção de Dados (Mantido igual)
+            # 1. Definir o nome do arquivo com base no nome do paciente
+            nome_paciente = data.get('paciente', {}).get('nome', 'Paciente')
+            nome_arquivo_pdf = sanitize_filename(nome_paciente)
+
+            # Traduções e Injeção de Dados
             translations_pt = json.dumps({
                 "titulo": "Relatório de Avaliações", "nome": "Nome: ", "estatura": "Estatura: ", "data": "Data: ",
                 "email": "E-mail: ", "sexo": "Sexo: ", "idade": "Idade: ", "analiseGlobalResumida_titulo": "Análise Global Resumida",
@@ -329,6 +354,7 @@ if report_id:
             <script>
                 const apiData = {json_data};
                 const translations = {translations_pt};
+                const fileName = "{nome_arquivo_pdf}"; // Nome do arquivo vindo do Python
                 var lang = "pt";
 
                 const sexoTraducoes = {{ pt: {{ male: "Masculino", female: "Feminino" }} }};
@@ -347,7 +373,31 @@ if report_id:
                     popularDadosAdicionais(ultimaAvaliacao);
                     criaLabelGrafico(data.avaliacoes);
                     criarGraficos(data);
+                    
+                    // Configura o evento do botão de download
+                    document.getElementById("btn-download").addEventListener("click", downloadPDF);
                 }});
+
+                function downloadPDF() {{
+                    const element = document.getElementById('container');
+                    const button = document.getElementById('btn-download');
+                    
+                    // Esconde o botão antes de gerar
+                    button.style.display = 'none';
+                    
+                    const opt = {{
+                        margin:       [0, 0, 0, 0], // Margem zerada para aproveitar a folha
+                        filename:     fileName,
+                        image:        {{ type: 'jpeg', quality: 0.98 }},
+                        html2canvas:  {{ scale: 2, useCORS: true, logging: true }}, // Scale 2 para alta resolucao
+                        jsPDF:        {{ unit: 'mm', format: 'a4', orientation: 'portrait' }}
+                    }};
+
+                    // Gera o PDF e restaura o botão
+                    html2pdf().set(opt).from(element).save().then(function(){{
+                        button.style.display = 'block';
+                    }});
+                }}
 
                 function aplicarTraducoes() {{
                     document.querySelectorAll("[data-translate]").forEach(el => {{
@@ -421,6 +471,7 @@ if report_id:
                         series: [{{ data: valores }}],
                         chart: {{
                             height: 90, type: 'area', zoom: {{ enabled: false }},
+                            animations: {{ enabled: false }}, // IMPORTANTE: Desativar animações para o PDF
                             toolbar: {{ show: false }}, offsetX: -7, offsetY: -25
                         }},
                         dataLabels: {{ enabled: false }},
@@ -576,11 +627,14 @@ if report_id:
             <html lang="pt">
             <head>
                 <meta charset="UTF-8">
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
                 <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.27.0/dist/apexcharts.min.js"></script>
                 {custom_css}
             </head>
             <body>
                 <div id="container">
+                    <button id="btn-download">Baixar PDF</button>
+
                     <div class="header grid-container-2c">
                         <div class="logo-cel"><img src="data:image/png;base64,{logo_b64}" /></div>
                         <div class="user-cel">

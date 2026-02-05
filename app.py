@@ -17,28 +17,35 @@ def get_base64_image(image_path):
     return ""
 
 def fetch_data(report_id):
-    """Busca os dados da API."""
+    """Busca os dados da API usando apenas o ID extraído."""
+    # A API precisa apenas do ID, não da URL completa
     url = f"https://balancaapi.avanutrionline.com/Relatorio/{report_id}"
     try:
         response = requests.get(url)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        st.error(f"Erro ao buscar dados: {e}")
+        st.error(f"Erro ao buscar dados. Verifique se o link está correto. Erro: {e}")
         return None
 
-# --- DEFINIÇÃO DE CORES E ESTILOS ---
-# Mapeamento de Cores conforme solicitado:
-# Verde original -> #9e747a
-# Fundo Branco -> #f5f1f2
-# Detalhes Escuros -> #72464e
-# Detalhes Claros -> #e2d5d7
+def extract_id_from_url(input_url):
+    """Extrai o ID após a hashtag # ou retorna o próprio input se não houver URL."""
+    if not input_url:
+        return ""
+    
+    # Se tiver '#', pega a última parte
+    if "#" in input_url:
+        return input_url.split("#")[-1]
+    
+    # Se não tiver '#', assumimos que o usuário colou apenas o ID
+    return input_url
 
-COLOR_PRIMARY = "#9e747a"       # Substitui o verde (#00ada8)
-COLOR_BG = "#f5f1f2"            # Substitui o branco (#FFF)
-COLOR_DARK = "#72464e"          # Substitui textos e bordas escuras
-COLOR_LIGHT = "#e2d5d7"         # Substitui cinzas claros (#929da7ff e outros)
-COLOR_CHART_FILL = "rgba(158, 116, 122, 0.4)" # Versão RGBA do #9e747a para gráficos
+# --- DEFINIÇÃO DE CORES E ESTILOS ---
+COLOR_PRIMARY = "#9e747a"
+COLOR_BG = "#f5f1f2"
+COLOR_DARK = "#72464e"
+COLOR_LIGHT = "#e2d5d7"
+COLOR_CHART_FILL = "rgba(158, 116, 122, 0.4)"
 COLOR_CHART_STROKE = "rgba(158, 116, 122, 1)"
 
 # Carregar imagens em Base64
@@ -46,7 +53,6 @@ logo_b64 = get_base64_image("logoTKE.png")
 corpo_b64 = get_base64_image("corpo.png")
 
 # --- CSS CUSTOMIZADO ---
-# O CSS foi alterado para refletir as novas cores
 custom_css = f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
@@ -80,7 +86,7 @@ custom_css = f"""
     .rolavel {{ overflow: auto; }}
 
     h1, h2 {{
-        color: {COLOR_PRIMARY}; /* Cor Verde trocada */
+        color: {COLOR_PRIMARY};
         margin-bottom: 4px;
     }}
     h1 {{ font-size: 20px; }}
@@ -95,13 +101,12 @@ custom_css = f"""
 
     /* --- CORPO CSS --- */
     .corpo {{
-        background-image: url('data:image/png;base64,{corpo_b64}'); /* Imagem Estática */
+        background-image: url('data:image/png;base64,{corpo_b64}');
         background-position: center;
         background-repeat: no-repeat;
         background-size: contain;
         height: 320px;
     }}
-    /* Ajustes de posicionamento do corpo mantidos do original */
     .corpo>div:nth-child(1) {{ text-align: right; }}
     .corpo>div:nth-child(1)>div:nth-child(2) {{ margin-top: 10px; }}
     .corpo>div:nth-child(1)>div:nth-child(3) {{ margin-top: 30px; }}
@@ -113,7 +118,7 @@ custom_css = f"""
     .lado-corpo {{
         font-size: 1.2em;
         font-weight: bold;
-        color: {COLOR_LIGHT}; /* Detalhes Claros */
+        color: {COLOR_LIGHT};
     }}
 
     /* --- GRID CSS --- */
@@ -143,16 +148,15 @@ custom_css = f"""
 
     .padding-p {{ padding: 2px 5px; }}
 
-    /* CORES DAS CÉLULAS */
     .cel-cinza, .cel-verde {{
         font-weight: bold;
-        color: #FFF; /* Texto dentro das celulas continua branco */
+        color: #FFF;
         align-items: center;
         display: grid;
     }}
 
-    .cel-cinza {{ background-color: {COLOR_LIGHT}; color: {COLOR_DARK}; }} /* Cinza virou detalhe claro */
-    .cel-verde {{ background-color: {COLOR_PRIMARY}; }} /* Verde virou a cor principal */
+    .cel-cinza {{ background-color: {COLOR_LIGHT}; color: {COLOR_DARK}; }}
+    .cel-verde {{ background-color: {COLOR_PRIMARY}; }}
 
     .cel-header {{
         color: {COLOR_DARK};
@@ -188,7 +192,7 @@ custom_css = f"""
     .user-cel .nome {{ font-size: 12pt; font-weight: bold; }}
     
     .dados-paciente {{
-        background-color: {COLOR_BG}; /* Fundo trocado */
+        background-color: {COLOR_BG};
         padding: 10px 20px;
         border-bottom: 1px solid {COLOR_LIGHT};
     }}
@@ -200,7 +204,7 @@ custom_css = f"""
     }}
 
     .barra-baixo {{
-        border-bottom: 5px solid {COLOR_PRIMARY}; /* Cor da barra */
+        border-bottom: 5px solid {COLOR_PRIMARY};
         padding-bottom: 12px;
     }}
 
@@ -235,12 +239,11 @@ custom_css = f"""
     .barra-grafico-p-container {{ font-size: 12px; font-weight: bold; margin-top: 3px; }}
     .barra-grafico-p {{ background-color: {COLOR_DARK}; height: 7px; display: inline-block; margin-right: 10px; }}
 
-    /* TABELA DE GRÁFICOS HISTÓRICOS */
     #charts {{ width: 100%; min-width: 750px; border-collapse: separate; border-spacing: 5px; }}
     
     #charts tr td:nth-child(1) {{
         width: 110px;
-        background-color: {COLOR_PRIMARY}; /* Fundo da label do gráfico */
+        background-color: {COLOR_PRIMARY};
         font-weight: bold;
         color: #FFF;
         padding: 10px;
@@ -280,20 +283,25 @@ custom_css = f"""
 
 # --- LÓGICA DO APP ---
 
-# Input do ID pelo usuário (simulando o hash da URL)
-query_params = st.query_params
-initial_id = query_params.get("id", "")
-
 col_input, col_btn = st.columns([4, 1])
+
 with col_input:
-    report_id = st.text_input("ID do Relatório", value=initial_id, placeholder="Cole o código do hash aqui...")
+    url_input = st.text_input(
+        "Link do Relatório", 
+        placeholder="Cole aqui o link completo (Ex: https://...#CODIGO-DO-RELATORIO)"
+    )
+
+report_id = extract_id_from_url(url_input)
 
 if report_id:
+    # Mostra o ID extraído apenas para confirmação visual (opcional)
+    # st.caption(f"ID Extraído: {report_id}") 
+    
     with st.spinner('Carregando dados e gerando relatório...'):
         data = fetch_data(report_id)
 
         if data:
-            # Tradução básica embutida para evitar erro de fetch local no componente
+            # Traduções e Injeção de Dados (Mantido igual)
             translations_pt = json.dumps({
                 "titulo": "Relatório de Avaliações", "nome": "Nome: ", "estatura": "Estatura: ", "data": "Data: ",
                 "email": "E-mail: ", "sexo": "Sexo: ", "idade": "Idade: ", "analiseGlobalResumida_titulo": "Análise Global Resumida",
@@ -305,7 +313,6 @@ if report_id:
                 "idade_metabolica": "Idade Metabólica ", "nivelGorduraVisceral": "Nível de Gordura Visceral",
                 "dadosAdicionais_impedancias": "Impedâncias Z(Ω)", "BD": "BD", "BE": "BE", "TR": "TR", "PD": "PD", "PE": "PE",
                 "historicoComposicaoCorporal": "Histórico da composição Corporal", "anos": "anos",
-                # Traduções para gráficos
                 "peso_h": "Peso (kg)", "percentualGordura_h": "Percentual de Gordura (%)", "massaGordura_h": "Massa de Gordura (kg)",
                 "massaLivreGordura_h": "Massa Livre de Gordura (kg)", "massaMuscularEsqueletica_h": "Massa Muscular Esquelética (kg)",
                 "aguaCorporalL_h": "Água Corporal (L)", "aguaIntracelularL_h": "Água Intracelular (L)", "aguaExtracelularL_h": "Água Extracelular (L)",
@@ -316,13 +323,7 @@ if report_id:
                 "gorduraPernaDireita_h": "Gordura Perna Dir.", "gorduraPernaEsquerda_h": "Gordura Perna Esq."
             })
 
-            # Injetando os dados JSON diretamente no script JS
             json_data = json.dumps(data)
-            
-            # Script JS Modificado
-            # 1. Removemos o fetch(window.location.hash) e usamos a variável `apiData` injetada.
-            # 2. Alteramos as cores dos gráficos ApexCharts para as novas cores.
-            # 3. Adicionamos a lógica de tradução diretamente.
             
             js_script = f"""
             <script>
@@ -330,27 +331,20 @@ if report_id:
                 const translations = {translations_pt};
                 var lang = "pt";
 
-                // Objeto de traduções fixas auxiliares
                 const sexoTraducoes = {{ pt: {{ male: "Masculino", female: "Feminino" }} }};
                 const indiceApendicularTraducoes = {{ pt: {{ normal: "normal", baixo: "baixo" }} }};
                 const nivelTraducoes = {{ pt: {{ nivel: "Nível" }} }};
 
                 document.addEventListener("DOMContentLoaded", function () {{
                     const data = apiData;
-                    
-                    // Simula loadLanguage
                     aplicarTraducoes();
-
                     popularDadosUsuario(data.user);
                     popularDadosPaciente(data.paciente);
-
                     const ultimaAvaliacao = data.avaliacoes[data.avaliacoes.length - 1];
                     document.getElementById("data").innerText = formatarData(ultimaAvaliacao.data || new Date());
-
                     popularNormalidades(ultimaAvaliacao, data.normalidades);
                     popularDadosMembros(ultimaAvaliacao.dadosMembros, ultimaAvaliacao);
                     popularDadosAdicionais(ultimaAvaliacao);
-
                     criaLabelGrafico(data.avaliacoes);
                     criarGraficos(data);
                 }});
@@ -368,28 +362,25 @@ if report_id:
                     criarGrafico(data.avaliacoes, "dadosCorpo.fm", translations["massaGordura_h"], "massaGordura_h");
                     criarGrafico(data.avaliacoes, "dadosCorpo.ffm", translations["massaLivreGordura_h"], "massaLivreGordura_h");
                     criarGrafico(data.avaliacoes, "dadosCorpo.ssm", translations["massaMuscularEsqueletica_h"], "massaMuscularEsqueletica_h");
-                    
-                    // Adicione os outros gráficos conforme necessário, seguindo o padrão
+                    criarGrafico(data.avaliacoes, "dadosCorpo.tbw", translations["aguaCorporalL_h"], "aguaCorporalL_h");
+                    criarGrafico(data.avaliacoes, "dadosCorpo.icw", translations["aguaIntracelularL_h"], "aguaIntracelularL_h");
+                    criarGrafico(data.avaliacoes, "dadosCorpo.ecw", translations["aguaExtracelularL_h"], "aguaExtracelularL_h");
+                    criarGrafico(data.avaliacoes, "dadosCorpo.bmi", translations["imc_h"], "imc_h");
                 }}
 
                 function criaLabelGrafico(avaliacoes) {{
                     const labels = avaliacoes.map(avaliacao => formatarData(avaliacao.data));
                     while (labels.length < 6) {{ labels.push(null); }}
-
                     const container = document.getElementById("charts");
                     const tr = document.createElement("tr");
                     tr.className = "graficos-tr";
                     container.appendChild(tr);
-
                     const td1 = document.createElement("td");
                     tr.appendChild(td1);
-
                     const td2 = document.createElement("td");
                     tr.appendChild(td2);
-
                     const valoresLabel = document.createElement('div');
                     valoresLabel.className = "grid-container-6c datas";
-
                     labels.forEach(l => {{
                         const label = document.createElement("div");
                         label.className = "grafico-label";
@@ -402,24 +393,20 @@ if report_id:
                 function criarGrafico(avaliacoesData, prop, label, translationKey, utilizarFormaDecimalPadrao = true) {{
                     const valores = avaliacoesData.map(avaliacao => obterValor(avaliacao, prop));
                     while (valores.length < 6) {{ valores.push(null); }}
-
                     const container = document.getElementById("charts");
                     const tr = document.createElement("tr");
                     tr.className = "graficos-tr";
                     container.appendChild(tr);
-
                     const td1 = document.createElement("td");
                     tr.appendChild(td1);
                     const labelElement = document.createElement('label');
                     labelElement.innerText = label;
                     td1.appendChild(labelElement);
-
                     const td2 = document.createElement("td");
                     tr.appendChild(td2);
                     const chartPlaceholder = document.createElement('div');
                     chartPlaceholder.className = "chartPlaceholder";
                     td2.appendChild(chartPlaceholder);
-
                     const valoresLabel = document.createElement('div');
                     valoresLabel.className = "grid-container-6c";
                     valores.forEach(v => {{
@@ -430,7 +417,6 @@ if report_id:
                         valoresLabel.appendChild(valorLabel);
                     }});
                     td2.appendChild(valoresLabel);
-
                     var options = {{
                         series: [{{ data: valores }}],
                         chart: {{
@@ -440,17 +426,17 @@ if report_id:
                         dataLabels: {{ enabled: false }},
                         stroke: {{
                             curve: 'straight', width: 2,
-                            colors: ["{COLOR_CHART_STROKE}"] // COR CUSTOMIZADA AQUI
+                            colors: ["{COLOR_CHART_STROKE}"]
                         }},
                         fill: {{
-                            colors: ["{COLOR_CHART_FILL}"] // COR CUSTOMIZADA AQUI
+                            colors: ["{COLOR_CHART_FILL}"]
                         }},
                         xaxis: {{ labels: {{ show: false }} }},
                         yaxis: {{ show: false }},
                         grid: {{ show: false }},
                         markers: {{
                             size: 4, colors: ["#fff"],
-                            strokeColors: ["{COLOR_CHART_STROKE}"], // COR CUSTOMIZADA AQUI
+                            strokeColors: ["{COLOR_CHART_STROKE}"],
                             strokeWidth: 2, hover: {{ size: 7 }}
                         }}
                     }};
@@ -490,7 +476,12 @@ if report_id:
 
                 function formatarDataBrasileira(jsonDate) {{
                     const date = new Date(jsonDate);
-                    return date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR');
+                    const dia = date.getDate().toString().padStart(2, "0");
+                    const mes = (date.getMonth() + 1).toString().padStart(2, "0");
+                    const ano = date.getFullYear();
+                    const horas = date.getHours().toString().padStart(2, "0");
+                    const minutos = date.getMinutes().toString().padStart(2, "0");
+                    return `${{dia}}/${{mes}}/${{ano}} ${{horas}}:${{minutos}}`;
                 }}
 
                 function calcularIdade(dataNascimento) {{
@@ -541,17 +532,32 @@ if report_id:
                     return sequencia;
                 }}
                 
-                // Funções de popular membros e adicionais mantidas, apenas simplificadas para o exemplo
                 function popularDadosMembros(dadosMembro, avaliacao) {{
-                   // Lógica identica ao original, simplificado aqui para caber no bloco
-                   // O JS original deve ser colado aqui integralmente se precisar de todas as funcionalidades de membros
                    document.getElementById("mm-bd-k").innerText = formatarNumeroDecimalBrasileiro(dadosMembro[0].composicaoCorporal.ffm) + "kg";
-                   // ... (Repetir para todos os campos conforme script original)
                    document.getElementById("mm-bd-p").innerText = formatarNumeroBrasileiro(dadosMembro[0].composicaoCorporal.ffm / avaliacao.peso * 100) + "%";
-                   
-                   // Exemplo tronco
+                   document.getElementById("mm-be-k").innerText = formatarNumeroDecimalBrasileiro(dadosMembro[1].composicaoCorporal.ffm) + "kg";
+                   document.getElementById("mm-be-p").innerText = formatarNumeroBrasileiro(dadosMembro[1].composicaoCorporal.ffm / avaliacao.peso * 100) + "%";
                    document.getElementById("mm-t-k").innerText = formatarNumeroDecimalBrasileiro(dadosMembro[2].composicaoCorporal.ffm) + "kg";
+                   document.getElementById("mm-t-p").innerText = formatarNumeroBrasileiro(dadosMembro[2].composicaoCorporal.ffm / avaliacao.peso * 100) + "%";
+                   document.getElementById("mm-pd-k").innerText = formatarNumeroDecimalBrasileiro(dadosMembro[3].composicaoCorporal.ffm) + "kg";
+                   document.getElementById("mm-pd-p").innerText = formatarNumeroBrasileiro(dadosMembro[3].composicaoCorporal.ffm / avaliacao.peso * 100) + "%";
+                   document.getElementById("mm-pe-k").innerText = formatarNumeroDecimalBrasileiro(dadosMembro[4].composicaoCorporal.ffm) + "kg";
+                   document.getElementById("mm-pe-p").innerText = formatarNumeroBrasileiro(dadosMembro[4].composicaoCorporal.ffm / avaliacao.peso * 100) + "%";
+                   document.getElementById("mm-c-k").innerText = formatarNumeroDecimalBrasileiro(avaliacao.dadosCorpo.ffm) + "kg";
+                   document.getElementById("mm-c-p").innerText = formatarNumeroBrasileiro(avaliacao.dadosCorpo.ffm / avaliacao.peso * 100) + "%";
+
+                   document.getElementById("g-bd-k").innerText = formatarNumeroDecimalBrasileiro(dadosMembro[0].composicaoCorporal.fm) + "kg";
+                   document.getElementById("g-bd-p").innerText = formatarNumeroBrasileiro(dadosMembro[0].composicaoCorporal.fm / avaliacao.peso * 100) + "%";
+                   document.getElementById("g-be-k").innerText = formatarNumeroDecimalBrasileiro(dadosMembro[1].composicaoCorporal.fm) + "kg";
+                   document.getElementById("g-be-p").innerText = formatarNumeroBrasileiro(dadosMembro[1].composicaoCorporal.fm / avaliacao.peso * 100) + "%";
                    document.getElementById("g-t-k").innerText = formatarNumeroDecimalBrasileiro(dadosMembro[2].composicaoCorporal.fm) + "kg";
+                   document.getElementById("g-t-p").innerText = formatarNumeroBrasileiro(dadosMembro[2].composicaoCorporal.fm / avaliacao.peso * 100) + "%";
+                   document.getElementById("g-pd-k").innerText = formatarNumeroDecimalBrasileiro(dadosMembro[3].composicaoCorporal.fm) + "kg";
+                   document.getElementById("g-pd-p").innerText = formatarNumeroBrasileiro(dadosMembro[3].composicaoCorporal.fm / avaliacao.peso * 100) + "%";
+                   document.getElementById("g-pe-k").innerText = formatarNumeroDecimalBrasileiro(dadosMembro[4].composicaoCorporal.fm) + "kg";
+                   document.getElementById("g-pe-p").innerText = formatarNumeroBrasileiro(dadosMembro[4].composicaoCorporal.fm / avaliacao.peso * 100) + "%";
+                   document.getElementById("g-c-k").innerText = formatarNumeroDecimalBrasileiro(avaliacao.dadosCorpo.fm) + "kg";
+                   document.getElementById("g-c-p").innerText = formatarNumeroBrasileiro(avaliacao.dadosCorpo.fm / avaliacao.peso * 100) + "%";
                 }}
 
                 function popularDadosAdicionais(avaliacao) {{
@@ -613,6 +619,7 @@ if report_id:
                                     <div class="grafico-valores"></div>
                                     <div class="barra-grafico-container"><div class="barra-grafico"></div><label>--</label></div>
                                 </div>
+                                
                                 <div data-translate="massaGordura" class="cel-verde cel-label">Massa de Gordura</div>
                                 <div class="cel-grafico" id="normalidadeFM">
                                     <div class="grafico-valores"></div>
@@ -723,5 +730,4 @@ if report_id:
             </html>
             """
             
-            # Renderizar o HTML no Streamlit
             st.components.v1.html(html_content, height=1400, scrolling=True)

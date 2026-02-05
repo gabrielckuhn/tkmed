@@ -42,6 +42,7 @@ logo_b64 = get_base64_image("logoTKE.png")
 corpo_b64 = get_base64_image("corpo.png")
 
 # --- CSS DO RELATÓRIO (HTML DA NOVA ABA) ---
+# ATENÇÃO: Chaves do CSS duplicadas {{ }} para não confundir com variáveis Python
 html_css = f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
@@ -49,20 +50,20 @@ html_css = f"""
     body {{
         font-family: 'Roboto', Arial, sans-serif;
         margin: 0; padding: 0;
-        background-color: #525659; /* Fundo cinza escuro para destacar a folha */
+        background-color: #525659;
         display: flex;
         justify-content: center;
         min-height: 100vh;
     }}
 
     #container {{
-        width: 793px; /* Largura A4 */
-        min-height: 1122px; /* Altura A4 */
+        width: 793px;
+        min-height: 1122px;
         margin: 30px auto;
-        background-color: {COLOR_BG};
+        background-color: {COLOR_BG}; /* Aqui usa uma chave só pois é variavel Python */
         padding: 0;
         box-sizing: border-box;
-        box-shadow: 0 0 20px rgba(0,0,0,0.5); /* Sombra estilo documento */
+        box-shadow: 0 0 20px rgba(0,0,0,0.5);
     }}
 
     /* --- ESTILOS INTERNOS DO RELATÓRIO --- */
@@ -150,11 +151,11 @@ html_css = f"""
         .barra-corpos {{ display: none; }}
     }}
     
-    /* REMOVER TUDO NA IMPRESSÃO */
-    @media print {
+    /* REMOVER TUDO NA IMPRESSÃO - CORRIGIDO AQUI */
+    @media print {{
         body {{ background-color: white; }}
-        #container { margin: 0; box-shadow: none; width: 100%; }
-    }
+        #container {{ margin: 0; box-shadow: none; width: 100%; }}
+    }}
 </style>
 """
 

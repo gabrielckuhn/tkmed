@@ -42,7 +42,7 @@ logo_b64 = get_base64_image("logoTKE.png")
 corpo_b64 = get_base64_image("corpo.png")
 
 # --- CSS DO RELATÓRIO (HTML DA NOVA ABA) ---
-# ATENÇÃO: Chaves do CSS duplicadas {{ }} para não confundir com variáveis Python
+# Usamos chaves duplas {{ }} para o CSS dentro da f-string
 html_css = f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
@@ -60,13 +60,13 @@ html_css = f"""
         width: 793px;
         min-height: 1122px;
         margin: 30px auto;
-        background-color: {COLOR_BG}; /* Aqui usa uma chave só pois é variavel Python */
+        background-color: {COLOR_BG};
         padding: 0;
         box-sizing: border-box;
         box-shadow: 0 0 20px rgba(0,0,0,0.5);
     }}
 
-    /* --- ESTILOS INTERNOS DO RELATÓRIO --- */
+    /* --- ESTILOS INTERNOS --- */
     .moldura {{ border-radius: 10px; border: 2px solid {COLOR_LIGHT}; overflow: hidden; background-color: {COLOR_BG}; margin: 20px; }}
     .container-padding-lateral {{ padding: 0px 20px; }}
     .rolavel {{ overflow: visible; }}
@@ -151,7 +151,6 @@ html_css = f"""
         .barra-corpos {{ display: none; }}
     }}
     
-    /* REMOVER TUDO NA IMPRESSÃO - CORRIGIDO AQUI */
     @media print {{
         body {{ background-color: white; }}
         #container {{ margin: 0; box-shadow: none; width: 100%; }}
@@ -429,31 +428,75 @@ if report_id:
             </html>
             """
             
-            # --- CRIAÇÃO DO LINK E LÓGICA DE ABERTURA ---
-            b64_html = base64.b64encode(html_content.encode()).decode()
-            data_url = f"data:text/html;base64,{b64_html}"
-
-            st.success(f"Relatório de **{nome_paciente}** preparado!")
+            # --- TÉCNICA DO BLOB URL (PARA EVITAR ABOUT:BLANK E MANTER CODIFICAÇÃO CORRETA) ---
+            # 1. Transformamos o HTML em Base64 no Python
+            b64_html = base64.b64encode(html_content.encode('utf-8')).decode('utf-8')
             
-            # Exibe um BOTÃO LINK GRANDE para abrir a aba
-            st.markdown(f"""
-                <div style="display: flex; justify-content: center; margin-top: 20px;">
-                    <a href="{data_url}" target="_blank" style="
-                        background-color: {COLOR_PRIMARY};
-                        color: white;
-                        padding: 15px 30px;
-                        text-align: center;
-                        text-decoration: none;
-                        font-size: 18px;
-                        font-weight: bold;
-                        border-radius: 8px;
-                        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                        font-family: sans-serif;
-                    ">
-                        📄 ABRIR RELATÓRIO EM NOVA ABA
-                    </a>
-                </div>
-            """, unsafe_allow_html=True)
+            # 2. Criamos um componente HTML invisível com um Script que:
+            #    - Decodifica o Base64
+            #    - Cria um Objeto Blob
+            #    - Cria uma URL para esse Blob (blob:http://...)
+            #    - Atribui essa URL ao botão de abrir
+            
+            opener_script = f"""
+            <script>
+                function openBlobReport() {{
+                    // Decodifica a string Base64 (tratando caracteres especiais UTF-8)
+                    var b64 = "{b64_html}";
+                    var byteCharacters = atob(b64);
+                    var byteNumbers = new Array(byteCharacters.length);
+                    for (var i = 0; i < byteCharacters.length; i++) {{
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }}
+                    var byteArray = new Uint8Array(byteNumbers);
+                    
+                    // Cria o Blob
+                    var blob = new Blob([byteArray], {{type: 'text/html;charset=utf-8'}});
+                    var blobUrl = URL.createObjectURL(blob);
+                    
+                    // Abre em nova aba
+                    window.open(blobUrl, '_blank');
+                }}
+            </script>
+            
+            <style>
+                .btn-open {{
+                    background-color: {COLOR_PRIMARY};
+                    color: white;
+                    padding: 15px 30px;
+                    text-align: center;
+                    text-decoration: none;
+                    display: inline-block;
+                    font-size: 18px;
+                    font-weight: bold;
+                    border-radius: 8px;
+                    border: none;
+                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                    font-family: sans-serif;
+                    cursor: pointer;
+                    width: 100%;
+                }}
+                .btn-open:hover {{
+                    background-color: {COLOR_DARK};
+                }}
+                .container {{
+                    display: flex; 
+                    justify-content: center; 
+                    margin-top: 20px;
+                }}
+            </style>
+            
+            <div class="container">
+                <button onclick="openBlobReport()" class="btn-open">
+                    📄 ABRIR RELATÓRIO EM NOVA ABA
+                </button>
+            </div>
+            """
+
+            st.success(f"Relatório de **{nome_paciente}** preparado com sucesso!")
+            
+            # Renderiza o botão e o script que faz a mágica do Blob
+            st.components.v1.html(opener_script, height=100)
 
         else:
             st.error("Dados não encontrados. Verifique o link ou ID.")

@@ -152,7 +152,7 @@ html_css = f"""
     
     /* REMOVER TUDO NA IMPRESSÃO */
     @media print {
-        body { background-color: white; }
+        body {{ background-color: white; }}
         #container { margin: 0; box-shadow: none; width: 100%; }
     }
 </style>
